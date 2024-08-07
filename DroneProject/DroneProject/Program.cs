@@ -128,12 +128,13 @@ namespace DroneProject
                                 
                             }
                             ServerSerial.Connect();
+                            ServerSerial.OnSerialDataReceived += ServerSerial_OnSerialDataReceived;
                         }
 
                         if (ServerSerial.IsConnected)
                         {
                             ServerSerial.StartSerialDataExchange();
-                            Console.WriteLine("     Sucesso");
+                            Console.WriteLine(" Sucesso na conexão com o servidor. Aguardando dados");
                         }
                         else
                         {
@@ -153,5 +154,9 @@ namespace DroneProject
             }
         }
 
+        private static void ServerSerial_OnSerialDataReceived(byte[] data)
+        {
+            Console.WriteLine("Recebido novos dados. Tamanho do pkt:" + data.Length.ToString());
+        }
     }
 }

@@ -21,6 +21,7 @@ namespace DroneProject.ModelContext.Serial
         bool _continue;
         SerialPort _serialPort = new SerialPort();
         public event SerialDataReceived OnSerialDataReceived;
+        public bool LockDataSend = false;
 
         public SerialCommunication(string portName, int baudRate)
         {
@@ -51,6 +52,9 @@ namespace DroneProject.ModelContext.Serial
         }
         public void SendData(byte[] data) 
         {
+            if (LockDataSend) return;
+
+            LockDataSend = true;
             try
             {
                 if (_serialPort != null) 
@@ -58,6 +62,7 @@ namespace DroneProject.ModelContext.Serial
                     if (IsConnected)
                     {
                         _serialPort.Write(data, 0, data.Length);
+                        Thread.Sleep(10);
                     }
                     else
                     {
@@ -68,6 +73,40 @@ namespace DroneProject.ModelContext.Serial
             catch (Exception ex)
             {
                 throw new Exception("Houve um erro ao enviar os dados seriais: " + ex.Message);
+            }
+            finally
+            {
+                LockDataSend = false;
+            }
+        }
+        public async Task SendDataAsync(byte[] data)
+        {
+            if (LockDataSend) return;
+
+            LockDataSend = true;
+            try
+            {
+
+                if (_serialPort != null)
+                {
+                    if (IsConnected)
+                    {
+                        await Task.Run(() => _serialPort.Write(data, 0, data.Length));
+                        await Task.Delay(1000);
+                    }
+                    else
+                    {
+                        Connect();
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                throw new Exception("Houve um erro ao enviar os dados seriais: " + ex.Message);
+            }
+            finally
+            {
+                LockDataSend = false;
             }
         }
         private void SerialPort_DataReceived(object sender, SerialDataReceivedEventArgs e)

@@ -47,7 +47,7 @@ namespace DroneProject.ModelContext.Serial.ServerSerial
                 while (!_stopThread)
                 {
                     //Falta adicionar o tratamento de erro aqui
-                    SendData(Telemetria.RawData);
+                    SendDataAsync(Telemetria.RawData);
                 }
             });
             _threadSerialDataExchange.Start();
@@ -58,14 +58,21 @@ namespace DroneProject.ModelContext.Serial.ServerSerial
         }
         private void ServerSerial_OnSerialDataReceived(byte[] data)
         {
-            object dataProtocol = RDCProtocol.Decode(data);
-            if (dataProtocol != null)
+            try
             {
-                //Pacote de Manual Control
-                if (dataProtocol is RDCManualControl)
+                object dataProtocol = RDCProtocol.Decode(data);
+                if (dataProtocol != null)
                 {
-                    ManualControl = (RDCManualControl)dataProtocol;
+                    //Pacote de Manual Control
+                    if (dataProtocol is RDCManualControl)
+                    {
+                        ManualControl = (RDCManualControl)dataProtocol;
+                    }
                 }
+            }
+            catch (Exception)
+            {
+
             }
         }
     }
