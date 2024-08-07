@@ -2,7 +2,7 @@
 
 namespace RDC.RDCProtocol
 {
-    public static class RDCProtocol
+    public class RDCProtocol
     {
         #region description
         /*

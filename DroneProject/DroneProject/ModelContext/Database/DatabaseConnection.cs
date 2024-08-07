@@ -1,28 +1,23 @@
 ﻿using Microsoft.Data.Sqlite;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using System.Reflection.PortableExecutable;
 
 namespace DroneProject.ModelContext.Database
 {
     public class DatabaseConnection
     {
-        private string _connectionString;
-        public SqliteConnection Connection { get; set; }
-
-        public DatabaseConnection(string conn)
-        {
-            _connectionString = conn;
-            _connectionString = "Data Source=Drone.db";
-        }
+        public static string ConnectionString { get; set; } = "Data Source=Drone.db";
+        public SqliteConnection Connection { get; set; } = new SqliteConnection(ConnectionString);
 
         public void Conectar()
         {
-            var connection = new SqliteConnection(_connectionString);
-            connection.Open();   
+            if (Connection == null)
+            {
+                Connection = new SqliteConnection(ConnectionString);
+            }
+
+            if (Connection.State != System.Data.ConnectionState.Open)
+            {
+                Connection.Open();
+            }
         }
 
         public void Desconectar()
@@ -31,6 +26,8 @@ namespace DroneProject.ModelContext.Database
             {
                 Connection.Close();
             }
+
+            Connection = null;
         }
     }
 }

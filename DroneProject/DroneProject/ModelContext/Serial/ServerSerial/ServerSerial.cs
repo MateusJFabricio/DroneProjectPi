@@ -1,13 +1,18 @@
-﻿using RDC.CRSFProtocol;
-using RDC.RDCProtocol;
+﻿using RDC.RDCProtocol;
+using System;
+using System.Collections.Generic;
+using System.Data.Common;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Transactions;
 
-namespace DroneProject.ModelContext.Serial.FlyController
+namespace DroneProject.ModelContext.Serial.ServerSerial
 {
-    internal class FlyControllerSerial : SerialCommunication
+    internal class ServerSerial : SerialCommunication
     {
         public RDCTelemetria Telemetria { get; set; } = new RDCTelemetria();
         public RDCManualControl ManualControl { get; set; } = new RDCManualControl();
-        public CRSFProtocol CRSF { get; set; } = new CRSFProtocol();
         private Thread _threadSerialDataExchange;
         private bool _stopThread = false;
         public bool SeriaDataExchangeRunning
@@ -24,21 +29,15 @@ namespace DroneProject.ModelContext.Serial.FlyController
                 }
             }
         }
-        public FlyControllerSerial(string portName, int baudRate) : base(portName, baudRate)
+        public ServerSerial(string portName, int baudRate) : base(portName, baudRate)
         {
-            OnSerialDataReceived += FlyControllerSerial_OnSerialDataReceived;
-
-            //Set initial value for channels
-            for (int i = 0; i < CRSF.Channels.Length; i++) 
-            { 
-                ManualControl.SetChannel(i, CRSF.Channels[i]);
-            }
+            OnSerialDataReceived += ServerSerial_OnSerialDataReceived;
         }
         public void StartSerialDataExchange()
         {
             _stopThread = false;
 
-            if (_threadSerialDataExchange != null) 
+            if (_threadSerialDataExchange != null)
             {
                 if (_threadSerialDataExchange.IsAlive) return;
             }
@@ -47,27 +46,25 @@ namespace DroneProject.ModelContext.Serial.FlyController
             {
                 while (!_stopThread)
                 {
-                    var crsfData = CRSF.BuildChannelPacket(ManualControl.Channels);
-
                     //Falta adicionar o tratamento de erro aqui
-                    SendData(crsfData);
+                    SendData(Telemetria.RawData);
                 }
             });
             _threadSerialDataExchange.Start();
         }
-        public void StopSerialDataExchange() 
+        public void StopSerialDataExchange()
         {
             _stopThread = true;
         }
-        private void FlyControllerSerial_OnSerialDataReceived(byte[] data)
+        private void ServerSerial_OnSerialDataReceived(byte[] data)
         {
             object dataProtocol = RDCProtocol.Decode(data);
             if (dataProtocol != null)
             {
-                //Pacote de telemetria
-                if (dataProtocol is RDCTelemetria)
+                //Pacote de Manual Control
+                if (dataProtocol is RDCManualControl)
                 {
-                    Telemetria = (RDCTelemetria)dataProtocol;
+                    ManualControl = (RDCManualControl)dataProtocol;
                 }
             }
         }

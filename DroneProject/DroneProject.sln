@@ -3,7 +3,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.10.35013.160
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DroneProject", "DroneProject\DroneProject.csproj", "{C356EEB8-8ECF-443B-A793-B1D37444AC9A}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DronePIProject", "DroneProject\DronePIProject.csproj", "{C356EEB8-8ECF-443B-A793-B1D37444AC9A}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RDC", "DroneSerial\RDC.csproj", "{172F4EF5-6177-445A-861E-1BDE4F2C3257}"
 EndProject
