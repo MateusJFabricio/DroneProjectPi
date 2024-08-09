@@ -25,7 +25,7 @@ namespace DroneProject.ModelContext.Database
             try
             {
                 Conectar();
-                if (((ITableModelContext)this).CheckTable(Connection, TABLE_NAME))
+                if (!((ITableModelContext)this).CheckTable(Connection, TABLE_NAME))
                 {
                     string createTableCommand = "CREATE TABLE ERROR_LOG(" +
                         "ID    INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL," +
@@ -93,7 +93,7 @@ namespace DroneProject.ModelContext.Database
                     command.Parameters.AddWithValue("ORIGEM", errorLog.Origem);
                     command.Parameters.AddWithValue("DESCRICAO", errorLog.Descricao);
 
-                    int id = (int)command.ExecuteScalar();
+                    int id = (int)command.ExecuteNonQuery();
                     errorLog.Id = id;
                     ErrorLogList.Add(errorLog);
                 }

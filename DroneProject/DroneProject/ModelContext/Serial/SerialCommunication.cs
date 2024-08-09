@@ -18,7 +18,6 @@ namespace DroneProject.ModelContext.Serial
         }
         public int BaudRate { get; set; }
         public string PortName { get; set; }
-        bool _continue;
         SerialPort _serialPort = new SerialPort();
         public event SerialDataReceived OnSerialDataReceived;
         public bool LockDataSend = false;
@@ -39,7 +38,7 @@ namespace DroneProject.ModelContext.Serial
             }
             catch (Exception ex)
             {
-
+                
             }
         }
         public void Disconnect()
@@ -50,7 +49,7 @@ namespace DroneProject.ModelContext.Serial
                 _serialPort.DataReceived -= SerialPort_DataReceived;
             }
         }
-        public void SendData(byte[] data) 
+        public void SendData(byte[] data, int delay) 
         {
             if (LockDataSend) return;
 
@@ -62,11 +61,11 @@ namespace DroneProject.ModelContext.Serial
                     if (IsConnected)
                     {
                         _serialPort.Write(data, 0, data.Length);
-                        Thread.Sleep(10);
                     }
                     else
                     {
                         Connect();
+                        Thread.Sleep(delay);
                     }
                 }
             }

@@ -9,9 +9,9 @@ using System.Transactions;
 
 namespace DroneProject.ModelContext.Serial.ServerSerial
 {
-    internal class ServerSerial : SerialCommunication
+    public class ServerSerial : SerialCommunication
     {
-        public RDCTelemetria Telemetria { get; set; } = new RDCTelemetria();
+        public RDCTelemetry Telemetria { get; set; } = new RDCTelemetry();
         public RDCManualControl ManualControl { get; set; } = new RDCManualControl();
         private Thread _threadSerialDataExchange;
         private bool _stopThread = false;
@@ -47,7 +47,8 @@ namespace DroneProject.ModelContext.Serial.ServerSerial
                 while (!_stopThread)
                 {
                     //Falta adicionar o tratamento de erro aqui
-                    SendDataAsync(Telemetria.RawData);
+                    SendData(Telemetria.Encode(), 1000);
+                    //SendDataAsync(Telemetria.RawData);
                 }
             });
             _threadSerialDataExchange.Start();
@@ -55,6 +56,8 @@ namespace DroneProject.ModelContext.Serial.ServerSerial
         public void StopSerialDataExchange()
         {
             _stopThread = true;
+            if (_threadSerialDataExchange != null)
+                _threadSerialDataExchange.Join();
         }
         private void ServerSerial_OnSerialDataReceived(byte[] data)
         {

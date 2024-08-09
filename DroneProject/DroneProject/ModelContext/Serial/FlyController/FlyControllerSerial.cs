@@ -1,13 +1,14 @@
-﻿using RDC.CRSFProtocol;
-using RDC.RDCProtocol;
+﻿using CRSF;
 
 namespace DroneProject.ModelContext.Serial.FlyController
 {
-    internal class FlyControllerSerial : SerialCommunication
+    public class FlyControllerSerial : SerialCommunication
     {
-        public RDCTelemetria Telemetria { get; set; } = new RDCTelemetria();
-        public RDCManualControl ManualControl { get; set; } = new RDCManualControl();
-        public CRSFProtocol CRSF { get; set; } = new CRSFProtocol();
+        public CRSF_FRAMETYPE_BATTERY_SENSOR Battery {get; set; } = new();
+        public CRSF_FRAMETYPE_GPS Gps {get; set; } = new();
+        public CRSF_FRAMETYPE_RC_CHANNELS_PACKED ManualControl {get; set; } = new();
+        public CRSF_FRAMETYPE_ATTITUDE Orientation {get; set; } = new();
+        public CRSF_FRAMETYPE_FLIGHT_MODE FlighMode {get; set; } = new();
         private Thread _threadSerialDataExchange;
         private bool _stopThread = false;
         public bool SeriaDataExchangeRunning
@@ -27,18 +28,12 @@ namespace DroneProject.ModelContext.Serial.FlyController
         public FlyControllerSerial(string portName, int baudRate) : base(portName, baudRate)
         {
             OnSerialDataReceived += FlyControllerSerial_OnSerialDataReceived;
-
-            //Set initial value for channels
-            for (int i = 0; i < CRSF.Channels.Length; i++) 
-            { 
-                ManualControl.SetChannel(i, CRSF.Channels[i]);
-            }
         }
         public void StartSerialDataExchange()
         {
             _stopThread = false;
 
-            if (_threadSerialDataExchange != null) 
+            if (_threadSerialDataExchange != null)
             {
                 if (_threadSerialDataExchange.IsAlive) return;
             }
@@ -47,10 +42,10 @@ namespace DroneProject.ModelContext.Serial.FlyController
             {
                 while (!_stopThread)
                 {
-                    var crsfData = CRSF.BuildChannelPacket(ManualControl.Channels);
+                    var crsfData = ManualControl.Encode();
 
                     //Falta adicionar o tratamento de erro aqui
-                    SendData(crsfData);
+                    SendData(crsfData, 1000);
                 }
             });
             _threadSerialDataExchange.Start();
@@ -58,17 +53,41 @@ namespace DroneProject.ModelContext.Serial.FlyController
         public void StopSerialDataExchange() 
         {
             _stopThread = true;
+            if (_threadSerialDataExchange != null)
+                _threadSerialDataExchange.Join();
         }
         private void FlyControllerSerial_OnSerialDataReceived(byte[] data)
         {
-            object dataProtocol = RDCProtocol.Decode(data);
-            if (dataProtocol != null)
-            {
-                //Pacote de telemetria
-                if (dataProtocol is RDCTelemetria)
+            try{
+                foreach(var crsfPkt in CRSFProtocol.Decode(data))
                 {
-                    Telemetria = (RDCTelemetria)dataProtocol;
+                    //Pacote de telemetria
+                    if (crsfPkt is CRSF_FRAMETYPE_BATTERY_SENSOR)
+                    {
+                        Battery = (CRSF_FRAMETYPE_BATTERY_SENSOR)crsfPkt;
+                    }
+
+                    //Pacote de telemetria
+                    if (crsfPkt is CRSF_FRAMETYPE_GPS)
+                    {
+                        Gps = (CRSF_FRAMETYPE_GPS)crsfPkt;
+                    }
+
+                    //Pacote de telemetria
+                    if (crsfPkt is CRSF_FRAMETYPE_ATTITUDE)
+                    {
+                        Orientation = (CRSF_FRAMETYPE_ATTITUDE)crsfPkt;
+                    }
+
+                    //Pacote de telemetria
+                    if (crsfPkt is CRSF_FRAMETYPE_FLIGHT_MODE)
+                    {
+                        FlighMode = (CRSF_FRAMETYPE_FLIGHT_MODE)crsfPkt;
+                    }
                 }
+                
+            }catch{
+
             }
         }
     }

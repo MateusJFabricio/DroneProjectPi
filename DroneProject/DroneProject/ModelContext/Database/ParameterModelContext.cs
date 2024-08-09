@@ -2,6 +2,7 @@
 using DroneProject.Models;
 using Microsoft.Data.Sqlite;
 using System.Data;
+using System.Net.Http.Headers;
 using System.Text;
 
 namespace DroneProject.ModelContext.Database
@@ -20,7 +21,7 @@ namespace DroneProject.ModelContext.Database
             try
             {
                 Conectar();
-                if (((ITableModelContext)this).CheckTable(Connection, TABLE_NAME))
+                if (!((ITableModelContext)this).CheckTable(Connection, TABLE_NAME))
                 {
                     string createTableCommand = "CREATE TABLE PARAMETER(" +
                         "ID    INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL," +
@@ -28,6 +29,7 @@ namespace DroneProject.ModelContext.Database
                         "VALUE STRING  NOT NULL);";
 
                     ((ITableModelContext)this).CreateTable(Connection, createTableCommand, TABLE_NAME);
+                    Insert(new ParametroModel { Key = "DRONE_NOME", Value = "Inferno" });
                 }
                 Desconectar();
             }
@@ -87,7 +89,7 @@ namespace DroneProject.ModelContext.Database
                     command.Parameters.AddWithValue("KEY", parameterModel.Key);
                     command.Parameters.AddWithValue("VALUE", parameterModel.Value);
 
-                    int id = (int)command.ExecuteScalar();
+                    int id = (int)command.ExecuteNonQuery();
                     parameterModel.Id = id;
                     ParameterlList.Add(parameterModel);
                 }

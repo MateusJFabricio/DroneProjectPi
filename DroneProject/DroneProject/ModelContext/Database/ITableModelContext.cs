@@ -8,11 +8,11 @@ namespace DronePIProject.ModelContext.Database
         public bool CheckTable(SqliteConnection connection, string tableName)
         {
             SqliteCommand command = connection.CreateCommand();
-            command.CommandText = @"SELECT name FROM sqlite_master WHERE type='table' AND name='@TABLE_NAME'";
+            command.CommandText = @"SELECT name FROM sqlite_master WHERE type='table' AND name='" + tableName + "'";
             command.CommandType = CommandType.Text;
-            command.Parameters.AddWithValue("TABLE_NAME", tableName);
-
-            return command.ExecuteScalar() != null;
+            //command.Parameters.AddWithValue("TABLE_NAME", tableName);
+            var comm = command.ExecuteScalar();
+            return comm != null;
         }
         public void CreateTable(SqliteConnection connection, string createTabelCommand, string tableName)
         {

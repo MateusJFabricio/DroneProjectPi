@@ -6,7 +6,7 @@ using System.Text;
 
 namespace DroneProject.ModelContext.Database
 {
-    internal class SerialModelContext : DatabaseConnection, ITableModelContext
+    public class SerialModelContext : DatabaseConnection, ITableModelContext
     {
         public List<SerialModel> SerialList { get; set; } = new List<SerialModel>();
         public string TABLE_NAME { get; private set; } = "SERIAL";
@@ -21,7 +21,7 @@ namespace DroneProject.ModelContext.Database
             try
             {
                 Conectar();
-                if (((ITableModelContext)this).CheckTable(Connection, TABLE_NAME))
+                if (!((ITableModelContext)this).CheckTable(Connection, TABLE_NAME))
                 {
                     string createTableCommand = "CREATE TABLE SERIAL (" +
                         "ID INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL," +
@@ -30,6 +30,8 @@ namespace DroneProject.ModelContext.Database
                         "PORT_COM STRING NOT NULL);";
 
                     ((ITableModelContext)this).CreateTable(Connection, createTableCommand, TABLE_NAME);
+                    Insert(new SerialModel { Nome = "FLY_CONTROLLER", BaudRate = 416666, PortCOM = "COM1" });
+                    Insert(new SerialModel { Nome = "SERVER", BaudRate = 57600, PortCOM = "COM1" });
                 }
                 Desconectar();
             }
@@ -84,13 +86,13 @@ namespace DroneProject.ModelContext.Database
                 {
                     SqliteCommand command = Connection.CreateCommand();
                     command.CommandText = @"INSERT INTO "+ TABLE_NAME + " (NOME, BAUD_RATE, PORT_COM)" +
-                        " VALUES (@NOME, @BAUD_RATE, @PORT_COM)";
+                        " VALUES (@NOME, @BAUD_RATE, @PORT_COM);";
                     command.CommandType = CommandType.Text;
                     command.Parameters.AddWithValue("NOME", serialModel.Nome);
                     command.Parameters.AddWithValue("BAUD_RATE", serialModel.BaudRate);
                     command.Parameters.AddWithValue("PORT_COM", serialModel.PortCOM);
 
-                    int id = (int)command.ExecuteScalar();
+                    int id = (int)command.ExecuteNonQuery();
                     serialModel.Id = id;
                     SerialList.Add(serialModel);
                 }
