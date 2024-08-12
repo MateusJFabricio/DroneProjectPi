@@ -8,9 +8,9 @@ namespace CRSF{
     {
         private byte[] _rawPacket;
         public float Voltage {get;set;}
-        public int Current {get;set;}
-        public int UsedCapacity {get;set;}
-        public int Percentage {get;set;}
+        public float Current {get;set;}
+        public float UsedCapacity {get;set;}
+        public float Percentage {get;set;}
         public CRSF_FRAMETYPE_BATTERY_SENSOR(){}
         public CRSF_FRAMETYPE_BATTERY_SENSOR(byte[] data){
             Decode(data);
@@ -18,10 +18,10 @@ namespace CRSF{
         public void Decode(byte[] data){
             if (CRSFPackage.CheckPacket(data)){
                 var payload = CRSFPackage.GetPayload(data);
-                Voltage = BinaryPrimitives.ReverseEndianness(BitConverter.ToInt16(payload, 0))/10;
-                Current = BinaryPrimitives.ReverseEndianness(BitConverter.ToInt16(payload, 2));
-                UsedCapacity = 0;
-                Percentage = Convert.ToInt32(data[7]);
+                Voltage = BitConverter.ToInt16([payload[1], payload[0]], 0)/10;
+                Current = BitConverter.ToInt16([payload[3], payload[2]], 0)/10;
+                UsedCapacity = 0;// BitConverter.ToSingle([0, payload[6], payload[5], payload[4]], 0);
+                Percentage = Convert.ToSingle(data[7]);
 
                 _rawPacket = data;
             }
@@ -42,9 +42,9 @@ namespace CRSF{
     public class CRSF_FRAMETYPE_GPS : ICRSFPackage
     {
         private byte[] _rawPacket;
-        public int Latitude {get; set;}
-        public int Longitude {get; set;}
-        public int Speed {get; set;}
+        public float Latitude {get; set;}
+        public float Longitude {get; set;}
+        public float Speed {get; set;}
         public int Course {get; set;}
         public int Altitude {get; set;}
         public int SatelliteCount {get; set;}
@@ -55,9 +55,9 @@ namespace CRSF{
         public void Decode(byte[] data){
             if (CRSFPackage.CheckPacket(data)){
                 var payload = CRSFPackage.GetPayload(data);
-                Latitude = BitConverter.ToInt32([payload[3], payload[2], payload[1], payload[0]], 0) / 10000000;
-                Longitude = BitConverter.ToInt32([payload[7], payload[6], payload[5], payload[4]], 0) / 10000000;
-                Speed = BitConverter.ToInt16([payload[9], payload[8]], 0) / 10;
+                Latitude = float.Parse(BitConverter.ToInt32([payload[3], payload[2], payload[1], payload[0]], 0).ToString()) / 10000000;
+                Longitude = float.Parse(BitConverter.ToInt32([payload[7], payload[6], payload[5], payload[4]], 0).ToString()) / 10000000;
+                Speed = float.Parse(BitConverter.ToInt16([payload[9], payload[8]], 0).ToString());// / 10;
                 Course = BitConverter.ToInt16([payload[11], payload[10]], 0) / 100;
                 Altitude = BitConverter.ToUInt16([payload[13], payload[12]], 0) - 1000;
                 SatelliteCount = Convert.ToInt32(payload[14]);
