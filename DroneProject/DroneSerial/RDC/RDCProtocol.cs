@@ -31,6 +31,7 @@ namespace RDC.RDCProtocol
         public static List<object> Decode(byte[] pacote)
         {
             List<object> returnList = new();
+            if (pacote == null) return returnList;
 
             foreach(var pkt in SplitPackage(pacote, 0xFF)){
                 object returnPkt = new();
@@ -83,12 +84,19 @@ namespace RDC.RDCProtocol
             while(index < pacote.Length){
                 try{
                     if(byteSplit == pacote[index]){
-                        int lenght = pacote[index + 1];
-                        if (pacote.Length < index + 2 + lenght) break;
-                        byte[] b = new byte[lenght + 2];
-                        Array.Copy(pacote, index, b, 0, lenght + 2);
-                        list.Add(b);
-                        index+=b.Length;
+                        if (index + 4 < pacote.Length)
+                        {
+                            int lenght = pacote[index + 1];
+                            if (pacote.Length < index + 2 + lenght) break;
+                            byte[] b = new byte[lenght + 2];
+                            Array.Copy(pacote, index, b, 0, lenght + 2);
+                            list.Add(b);
+                            index += b.Length;
+                        }
+                        else
+                        {
+                            index++;
+                        }
                     }else{
                         index++;
                     }

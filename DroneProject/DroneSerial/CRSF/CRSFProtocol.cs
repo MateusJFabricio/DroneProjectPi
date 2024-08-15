@@ -22,10 +22,12 @@
             return list;
         }
         public static List<object> Decode(byte[] pacote){
-            var pktList = SplitPackage(pacote, 0XC8);
             List<object> returnList = new();
+            if (pacote == null) return returnList;
 
-            foreach(var pkt in pktList){
+            var pktList = SplitPackage(pacote, 0XC8);
+
+            foreach (var pkt in pktList){
                 //Check o tamanho do pacote
                 if (!CRSFPackage.CheckPacket(pkt))
                 {
