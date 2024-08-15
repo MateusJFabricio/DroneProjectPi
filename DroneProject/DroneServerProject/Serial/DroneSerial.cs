@@ -45,7 +45,7 @@ namespace DroneServerProject.Serial
                     //Falta adicionar o tratamento de erro aqui
                     try
                     {
-                        SendData(ManualControl.Encode(), 1000);
+                        SendData(ManualControl.Encode(), 10);
                     }
                     catch (Exception ex)
                     {

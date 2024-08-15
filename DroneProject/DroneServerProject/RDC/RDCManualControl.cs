@@ -11,54 +11,44 @@ namespace DroneServerProject.RDC
     {
         public const int DATA_LENGTH = 32;
         private const int ROW = 0;
-        private const int PITCH = 2;
-        private const int TROTLE = 4;
-        private const int YAW = 6;
-        private const int ENABLE = 8;
+        private const int PITCH = 1;
+        private const int TROTLE = 2;
+        private const int YAW = 3;
+        private const int ENABLE = 4;
         public ushort Row
         {
-            get => BitConverter.ToUInt16(_rawData, ROW);
-            set => Array.Copy(BitConverter.GetBytes(value), 0, _rawData, ROW, 2);
+            get => Channels[ROW];
+            set => Channels[ROW] = value;
         }
         public ushort Pitch
         {
-            get => BitConverter.ToUInt16(_rawData, TROTLE);
-            set => Array.Copy(BitConverter.GetBytes(value), 0, _rawData, TROTLE, 2);
+            get => Channels[PITCH];
+            set => Channels[PITCH] = value;
         }
         public ushort Trotle
         {
-            get => BitConverter.ToUInt16(_rawData, PITCH);
-            set => Array.Copy(BitConverter.GetBytes(value), 0, _rawData, PITCH, 2);
+            get => Channels[TROTLE];
+            set => Channels[TROTLE] = value;
         }
 
         public ushort Yaw
         {
-            get => BitConverter.ToUInt16(_rawData, YAW);
-            set => Array.Copy(BitConverter.GetBytes(value), 0, _rawData, YAW, 2);
+            get => Channels[YAW];
+            set => Channels[YAW] = value;
         }
         public ushort Enable
         {
-            get => BitConverter.ToUInt16(_rawData, ENABLE);
-            set => Array.Copy(BitConverter.GetBytes(value), 0, _rawData, ENABLE, 2);
+            get => Channels[ENABLE];
+            set => Channels[ENABLE] = value;
         }
 
-        public ushort[] Channels
-        {
-            get
-            {
-                var channels = new ushort[16];
-                for (int i = 0; i < channels.Length; i++)
-                {
-                    channels[i] = BitConverter.ToUInt16(_rawData, i * 2);
-                }
-                return channels;
-            }
-        }
-        public byte[] RawData { get => _rawData; set => _rawData = value; }
-        private byte[] _rawData = new byte[DATA_LENGTH];
+        public ushort[] Channels { get; set; } = new ushort[16];
         public RDCManualControl()
         {
-            
+            for (int i = 0; i < Channels.Length; i++)
+            {
+                Channels[i] = 720;
+            }
         }
         public RDCManualControl(byte[] data)
         {
@@ -67,23 +57,13 @@ namespace DroneServerProject.RDC
             {
                 throw new Exception("Data nok");
             }
-            RawData = data;
         }
 
         public void SetChannel(int channel, ushort value)
         {
-            Array.Copy(BitConverter.GetBytes(value), 0, _rawData, channel * 2, 2);
+            Channels[channel + 4] = value;
         }
 
-        /// <summary>
-        /// Set do canal auxiliar iniciando em 1 até 12
-        /// </summary>
-        /// <param name="aux">Numero do canal auxiliar</param>
-        /// <param name="value">valor do canal auxiliar</param>
-        public void SetAuxChannel(int aux, ushort value)
-        {
-            Array.Copy(BitConverter.GetBytes(value), 0, _rawData, 6 + (aux * 2), 2);
-        }
         public byte[] Encode()
         {
             byte[] message = new byte[36];
