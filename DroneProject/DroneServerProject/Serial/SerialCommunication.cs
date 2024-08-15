@@ -81,36 +81,6 @@ namespace DroneServerProject.Serial
                 LockDataSend = false;
             }
         }
-        public async Task SendDataAsync(byte[] data)
-        {
-            if (LockDataSend) return;
-
-            LockDataSend = true;
-            try
-            {
-
-                if (_serialPort != null)
-                {
-                    if (IsConnected)
-                    {
-                        await Task.Run(() => _serialPort.Write(data, 0, data.Length));
-                        await Task.Delay(1000);
-                    }
-                    else
-                    {
-                        Connect();
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                throw new Exception("Houve um erro ao enviar os dados seriais: " + ex.Message);
-            }
-            finally
-            {
-                LockDataSend = false;
-            }
-        }
         private void SerialPort_DataReceived(object sender, SerialDataReceivedEventArgs e)
         {
             SerialPort sp = (SerialPort)sender;

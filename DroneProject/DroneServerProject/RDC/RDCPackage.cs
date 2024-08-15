@@ -5,8 +5,8 @@ namespace DroneServerProject.RDC
 {
     public class RDCPackage{
         public static byte[] GetPayload(byte[] data){
-            var payload = new byte[GetLenght(data)];
-            Array.Copy(data, 3, payload, 0, data.Length - 2);
+            var payload = new byte[GetLenght(data) - 2];
+            Array.Copy(data, 3, payload, 0, payload.Length);
             return payload;
         }
         public static int GetType(byte[] data){
@@ -25,7 +25,7 @@ namespace DroneServerProject.RDC
             if (data.Length < 5)
                 return false;
             
-            if (data[0] != 200)
+            if (data[0] != 0xFF)
                 return false;
             
             if (!CheckCRC(data))

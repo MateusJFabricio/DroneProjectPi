@@ -11,14 +11,9 @@ namespace DroneServerProject.Controller
     public class DroneController
     {
         public DroneSerial DroneSerial { get; set; }
-        public List<DroneModel> Drones { get; set; } = new List<DroneModel>();
         public DroneController() 
         {
             
-        }
-        public void NewDrone(DroneModel drone)
-        {
-            Drones.Add(drone);
         }
     }
 }

@@ -1,4 +1,5 @@
-﻿using System;
+﻿using RDC.Utils;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -57,11 +58,12 @@ namespace DroneServerProject.RDC
         private byte[] _rawData = new byte[DATA_LENGTH];
         public RDCManualControl()
         {
-
+            
         }
         public RDCManualControl(byte[] data)
         {
-            if (data.Length != DATA_LENGTH)
+            var payload = RDCPackage.GetPayload(data);
+            if (payload.Length != DATA_LENGTH)
             {
                 throw new Exception("Data nok");
             }
@@ -84,7 +86,27 @@ namespace DroneServerProject.RDC
         }
         public byte[] Encode()
         {
-            return _rawData;
+            byte[] message = new byte[36];
+
+            //Cabeçalho da mensagem
+            message[0] = 0xFF;  // Sync byte
+            message[1] = Convert.ToByte(message.Length - 2);  //Lenght
+            message[2] = 0x02;
+
+            //Adicionar o Payload
+            var c = Channels;
+            for (int i = 0; i < 16; i++)
+            {
+                Array.Copy(BitConverter.GetBytes(c[i]), 0, message, 3 + i * 2, 2);
+
+            }
+
+            // Calcular checksum
+            byte[] arrayCheckSum = new byte[message.Length - 3];
+            Array.Copy(message, 2, arrayCheckSum, 0, arrayCheckSum.Length);
+            message[message.Length - 1] = CRC8.ComputeChecksum(arrayCheckSum);
+
+            return message;
         }
     }
 }

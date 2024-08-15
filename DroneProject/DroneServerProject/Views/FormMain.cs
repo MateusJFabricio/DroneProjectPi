@@ -22,6 +22,8 @@ namespace DroneServerProject
         public FormMain()
         {
             InitializeComponent();
+            ConexaoView = new ConexaoView(droneController);
+            ControleView = new ControleView(droneController);
         }
         private void ResetMenuItemColor()
         {
@@ -48,7 +50,6 @@ namespace DroneServerProject
 
             pnlAplicacao.Controls.Clear();
 
-            ConexaoView = new ConexaoView(droneController);
             ConexaoView.TopLevel = false;
             pnlAplicacao.Controls.Add(ConexaoView);
             ConexaoView.WindowState = FormWindowState.Maximized;
@@ -62,7 +63,6 @@ namespace DroneServerProject
 
             pnlAplicacao.Controls.Clear();
 
-            ControleView = new ControleView();
             ControleView.TopLevel = false;
             pnlAplicacao.Controls.Add(ControleView);
             ControleView.WindowState = FormWindowState.Maximized;
