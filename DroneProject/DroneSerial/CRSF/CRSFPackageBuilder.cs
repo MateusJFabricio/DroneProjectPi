@@ -191,6 +191,17 @@ namespace CRSF{
 
             return message;
         }
+        public void WriteUshortInByteArray(ref byte[] byteArray, ushort channel, ref int offset)
+        {
+            int bytePosition = (offset / 8) + 3;
+            int bitPosition = offset % 8;
+
+            uint tempShort = (uint)(channel << bitPosition);
+            byteArray[bytePosition] = (byte)(BitConverter.GetBytes(tempShort)[0] | byteArray[bytePosition]);
+            byteArray[bytePosition + 1] = (byte)(BitConverter.GetBytes(tempShort)[1] | byteArray[bytePosition + 1]);
+            byteArray[bytePosition + 2] = (byte)(BitConverter.GetBytes(tempShort)[2] | byteArray[bytePosition + 2]);
+            offset += 11;
+        }
         public void SetChannelAux(int auxNum, int value)
         {
             Channels[auxNum + 3] = Convert.ToUInt16(value);
@@ -198,18 +209,6 @@ namespace CRSF{
         public ushort GetChannelAuxValue(int auxNum)
         {
             return Channels[auxNum + 3];
-        }
-        private void WriteUshortInByteArray(ref byte[] byteArray, ushort channel, ref int offset)
-        {
-            int bytePosition = (offset / 8) + 3;
-            int bitPosition = offset % 8;
-            
-            uint tempShort = (uint) (channel << bitPosition);
-            byteArray[bytePosition] = (byte) (BitConverter.GetBytes(tempShort)[0] | byteArray[bytePosition]);
-            byteArray[bytePosition + 1] = (byte) (BitConverter.GetBytes(tempShort)[1] | byteArray[bytePosition + 1]);
-            byteArray[bytePosition + 2] = (byte) (BitConverter.GetBytes(tempShort)[2] | byteArray[bytePosition + 2]);
-
-            offset += 11;
         }
     }
     public class CRSF_FRAMETYPE_ATTITUDE : ICRSFPackage

@@ -17,153 +17,183 @@ namespace DroneProject
         
         public static RDCManualControl RDCManualControl { get; set; } = new RDCManualControl();
         public static RDCTelemetry RDCTelemetry { get; set; } = new RDCTelemetry();
+        public static CRSF_FRAMETYPE_GPS Gps { get; set; } = new CRSF_FRAMETYPE_GPS();
+        public static CRSF_FRAMETYPE_ATTITUDE Orientation { get; set; } = new CRSF_FRAMETYPE_ATTITUDE();
+        public static CRSF_FRAMETYPE_BATTERY_SENSOR Bateria { get; set; } = new CRSF_FRAMETYPE_BATTERY_SENSOR();
+
+        public static byte[] FlyControllerSerialDataReceived { get; private set; }
+        public static byte[] ServerSerialDataReceived { get; private set; }
+
+        public static SerialPort FlyControllerSerial;
+        public static SerialPort ServerSerial;
+        //Dados
+        public static SerialModelContext SerialDataContext = new SerialModelContext();
+        public static SerialModel FlyControllerModel;
+        public static SerialModel ServerModel;
+
 
         static void Main(string[] args)
         {
             DateTime timeElapsed = DateTime.Now;
-            //Dados
-            SerialModelContext SerialDataContext = new SerialModelContext();
-            SerialModel FlyControllerModel = SerialDataContext.GetSerialByName("FLY_CONTROLLER");
-            SerialModel ServerModel = SerialDataContext.GetSerialByName("SERVER");
+            FlyControllerModel = SerialDataContext.GetSerialByName("FLY_CONTROLLER");
+            ServerModel = SerialDataContext.GetSerialByName("SERVER");
 
-            //Comunicacao
-            Task threadDataExchanger = new(()=>{
-                //Inicializa a conexao
-                SerialPort serverSerialPort = new SerialPort(ServerModel.PortCOM, ServerModel.BaudRate);
-                SerialPort flyControlllerSerialPort = new SerialPort(FlyControllerModel.PortCOM, FlyControllerModel.BaudRate);
-
-                try{
-                    while(true){
-                        //Server serial Conection
-                        try{
-                            if (!serverSerialPort.IsOpen)
-                            {
-                                serverSerialPort.Open();
-                                serverSerialPort.DataReceived += ServerSerialPort_DataReceived;
-                            }
-                            else
-                            {
-                                if (serverSerialPort.BytesToRead >= serverSerialPort.ReadBufferSize - 1000)
-                                {
-                                    ServerSerialPort_DataReceived(serverSerialPort, null);
-                                }
-                            }
-                        }catch(Exception ex){
-                            Console.WriteLine(ex.Message);
-                        }
-
-                        //FlyController serial Conection
+            Task _taskServer = new Task(() =>
+            {
+                Console.WriteLine("Inicializando task server...");
+                try
+                {
+                    while (true)
+                    {
                         try
                         {
-                            if (!flyControlllerSerialPort.IsOpen)
-                            {
-                                flyControlllerSerialPort.Open();
-                                flyControlllerSerialPort.DataReceived += FlyControllerSerialPort_DataReceived;
-                            }
+                            ServerCheckConnection();
+                            ServerReadData();
+                            ServerWriteData();
+                            Task.Delay(50);
                         }
                         catch (Exception ex)
                         {
-                            Console.WriteLine(ex.Message);
-                        }
-
-                        //DataExchange Server
-                        //try
-                        //{
-                        //    if (serverSerialPort.IsOpen){
-                        //        
-                        //        
-                        //    }
-                        //}catch(Exception ex){
-                        //
-                        //}
-
-                        //DataExchange FlyController
-                        try
-                        {
-                            if (flyControlllerSerialPort.IsOpen)
-                            {
-                                var manual = new CRSF_FRAMETYPE_RC_CHANNELS_PACKED(RDCManualControl.Channels);
-                                var pkt = manual.Encode();
-                                flyControlllerSerialPort.Write(pkt, 0, pkt.Length);
-
-                                Console.WriteLine("Time(ms): " + (DateTime.Now - timeElapsed).TotalMilliseconds);
-                                timeElapsed = DateTime.Now;
-                            }
-                        }
-                        catch (Exception ex)
-                        {
-                            Console.WriteLine(ex.Message);
+                            Console.WriteLine("Erro Task Server: " + ex.Message);
                         }
                     }
-                }catch(Exception ex){
-                    Console.WriteLine("Erro:" + ex.Message);
-                }finally{
-                    serverSerialPort.Close();
-                    flyControlllerSerialPort.Close();
+                }
+                finally
+                {
+                    if (ServerSerial != null)
+                        if (ServerSerial.IsOpen)
+                            ServerSerial.Close();
                 }
             });
 
-            threadDataExchanger.Start();
-
-            threadDataExchanger.Wait();
-        }
-        private static void ServerSerialPort_DataReceived(object sender, SerialDataReceivedEventArgs e)
-        {
-            try{
-                SerialPort sp = (SerialPort)sender;
-                if (sp.BytesToRead > 20){
-                    byte[] data = new byte[sp.BytesToRead];
-                    sp.Read(data, 0, data.Length);
-
-                    try
-                    {
-                        foreach (var pkt in RDCProtocol.Decode(data))
-                        {
-                            if (pkt is RDCManualControl)
-                            {
-                                RDCManualControl = (RDCManualControl)pkt;
-                            }
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        Console.WriteLine(ex.Message);
-                    }
-                }
-            }catch(Exception ex){
-                Console.WriteLine("Problema no recebimento de dados");
-            }
-        }
-
-        private static void FlyControllerSerialPort_DataReceived(object sender, SerialDataReceivedEventArgs e)
-        {
-            try
+            Task _taskFlyController = new Task(() =>
             {
-                SerialPort sp = (SerialPort)sender;
-                if (sp.BytesToRead > 20)
+                Console.WriteLine("Inicializando task flyController...");
+                try
                 {
-                    byte[] data = new byte[sp.BytesToRead];
-                    sp.Read(data, 0, data.Length);
-
-                    try
+                    while (true)
                     {
-                        foreach (var pkt in CRSFProtocol.Decode(data))
+                        try
                         {
-                            if (pkt is CRSF_FRAMETYPE_GPS)
-                            {
-                                var gps = (CRSF_FRAMETYPE_GPS)pkt;
-                            }
+                            FlyControllerCheckConnection();
+                            FlyControllerReadData();
+                            FlyControllerWriteData();
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine("Erro Task FlyController: " + ex.Message);
                         }
                     }
-                    catch (Exception ex)
+                }
+                finally
+                {
+                    if (FlyControllerSerial != null)
+                        if (FlyControllerSerial.IsOpen)
+                            FlyControllerSerial.Close();
+                }
+            });
+            
+            _taskFlyController.Start();
+            _taskServer.Start();
+
+            _taskFlyController.Wait();
+            _taskServer.Wait();
+        }
+        private static void FlyControllerCheckConnection()
+        {
+            if (FlyControllerSerial == null) 
+                FlyControllerSerial = new SerialPort(FlyControllerModel.PortCOM, FlyControllerModel.BaudRate);
+
+            if (!FlyControllerSerial.IsOpen)
+            {
+                try
+                {
+                    FlyControllerSerial.Open();
+                    Console.WriteLine("FlyController serial Open");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine("FlyController Serial Error: " + ex.Message);
+                }
+            }
+        }
+
+        private static void ServerCheckConnection()
+        {
+            if (ServerSerial == null) 
+                ServerSerial = new SerialPort(ServerModel.PortCOM, ServerModel.BaudRate);
+
+            if (!ServerSerial.IsOpen)
+            {
+                try 
+                {
+                    ServerSerial.Open();
+                    Console.WriteLine("Server serial Open");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine("Server Serial Error: " + ex.Message);
+                }
+            }
+        }
+        private static void FlyControllerWriteData()
+        {
+            if (FlyControllerSerial.IsOpen)
+            {
+                var manual = new CRSF_FRAMETYPE_RC_CHANNELS_PACKED(RDCManualControl.Channels);
+                var pkt = manual.Encode();
+
+                FlyControllerSerial.Write(pkt, 0, pkt.Length);
+            }
+        }
+
+        private static void ServerWriteData()
+        {
+            if (ServerSerial.IsOpen)
+            {
+                var pkt = Gps.ParseToRDC();
+
+                ServerSerial.Write(pkt, 0, pkt.Length);
+            }
+        }
+
+        private static void FlyControllerReadData()
+        {
+            if (FlyControllerSerial.IsOpen)
+            {
+                if (FlyControllerSerial.BytesToRead > 10)
+                {
+                    byte[] data = new byte[FlyControllerSerial.BytesToRead];
+                    FlyControllerSerial.Read(data, 0, data.Length);
+
+                    foreach (var pkt in CRSFProtocol.Decode(data))
                     {
-                        Console.WriteLine(ex.Message);
+                        if (pkt is CRSF_FRAMETYPE_GPS)
+                        {
+                            Gps = (CRSF_FRAMETYPE_GPS)pkt;
+                        }
                     }
                 }
             }
-            catch (Exception ex)
+        }
+
+        private static void ServerReadData()
+        {
+            if (ServerSerial.IsOpen)
             {
-                Console.WriteLine("Problema no recebimento de dados");
+                if (ServerSerial.BytesToRead > 10)
+                {
+                    byte[] data = new byte[ServerSerial.BytesToRead];
+                    ServerSerial.Read(data, 0, data.Length);
+
+                    foreach (var pkt in RDCProtocol.Decode(data))
+                    {
+                        if (pkt is RDCManualControl)
+                        {
+                            RDCManualControl = (RDCManualControl)pkt;
+                        }
+                    }
+                }
             }
         }
     }
