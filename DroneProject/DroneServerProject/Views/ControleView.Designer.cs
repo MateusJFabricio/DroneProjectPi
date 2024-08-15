@@ -32,12 +32,7 @@
             this.label1 = new System.Windows.Forms.Label();
             this.panel2 = new System.Windows.Forms.Panel();
             this.label2 = new System.Windows.Forms.Label();
-            this.label3 = new System.Windows.Forms.Label();
-            this.label4 = new System.Windows.Forms.Label();
-            this.txtYaw = new System.Windows.Forms.TextBox();
-            this.txtRow = new System.Windows.Forms.TextBox();
-            this.txtPitch = new System.Windows.Forms.TextBox();
-            this.btnOK = new System.Windows.Forms.Button();
+            this.pnlYawPitch = new System.Windows.Forms.Panel();
             this.panel1.SuspendLayout();
             this.panel2.SuspendLayout();
             this.SuspendLayout();
@@ -48,7 +43,7 @@
             this.panel1.Dock = System.Windows.Forms.DockStyle.Top;
             this.panel1.Location = new System.Drawing.Point(0, 0);
             this.panel1.Name = "panel1";
-            this.panel1.Size = new System.Drawing.Size(833, 50);
+            this.panel1.Size = new System.Drawing.Size(945, 50);
             this.panel1.TabIndex = 0;
             // 
             // label1
@@ -58,92 +53,46 @@
             this.label1.Font = new System.Drawing.Font("Microsoft Sans Serif", 15.75F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.label1.Location = new System.Drawing.Point(0, 0);
             this.label1.Name = "label1";
-            this.label1.Size = new System.Drawing.Size(833, 50);
+            this.label1.Size = new System.Drawing.Size(945, 50);
             this.label1.TabIndex = 0;
             this.label1.Text = "Controle";
             this.label1.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
             // 
             // panel2
             // 
-            this.panel2.Controls.Add(this.btnOK);
-            this.panel2.Controls.Add(this.txtPitch);
-            this.panel2.Controls.Add(this.txtRow);
-            this.panel2.Controls.Add(this.txtYaw);
-            this.panel2.Controls.Add(this.label4);
-            this.panel2.Controls.Add(this.label3);
             this.panel2.Controls.Add(this.label2);
+            this.panel2.Controls.Add(this.pnlYawPitch);
             this.panel2.Dock = System.Windows.Forms.DockStyle.Fill;
             this.panel2.Location = new System.Drawing.Point(0, 50);
             this.panel2.Name = "panel2";
-            this.panel2.Size = new System.Drawing.Size(833, 453);
+            this.panel2.Size = new System.Drawing.Size(945, 537);
             this.panel2.TabIndex = 1;
             // 
             // label2
             // 
-            this.label2.AutoSize = true;
-            this.label2.Location = new System.Drawing.Point(84, 35);
+            this.label2.Font = new System.Drawing.Font("Microsoft Sans Serif", 9.75F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.label2.Location = new System.Drawing.Point(77, 30);
             this.label2.Name = "label2";
-            this.label2.Size = new System.Drawing.Size(28, 13);
-            this.label2.TabIndex = 0;
-            this.label2.Text = "Yaw";
+            this.label2.Size = new System.Drawing.Size(251, 27);
+            this.label2.TabIndex = 1;
+            this.label2.Text = "Yaw / Pitch";
+            this.label2.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
             // 
-            // label3
+            // pnlYawPitch
             // 
-            this.label3.AutoSize = true;
-            this.label3.Location = new System.Drawing.Point(195, 35);
-            this.label3.Name = "label3";
-            this.label3.Size = new System.Drawing.Size(31, 13);
-            this.label3.TabIndex = 1;
-            this.label3.Text = "Pitch";
-            // 
-            // label4
-            // 
-            this.label4.AutoSize = true;
-            this.label4.Location = new System.Drawing.Point(308, 35);
-            this.label4.Name = "label4";
-            this.label4.Size = new System.Drawing.Size(29, 13);
-            this.label4.TabIndex = 2;
-            this.label4.Text = "Row";
-            // 
-            // txtYaw
-            // 
-            this.txtYaw.Location = new System.Drawing.Point(48, 56);
-            this.txtYaw.Name = "txtYaw";
-            this.txtYaw.Size = new System.Drawing.Size(100, 20);
-            this.txtYaw.TabIndex = 3;
-            this.txtYaw.Text = "900";
-            // 
-            // txtRow
-            // 
-            this.txtRow.Location = new System.Drawing.Point(272, 56);
-            this.txtRow.Name = "txtRow";
-            this.txtRow.Size = new System.Drawing.Size(100, 20);
-            this.txtRow.TabIndex = 4;
-            this.txtRow.Text = "900";
-            // 
-            // txtPitch
-            // 
-            this.txtPitch.Location = new System.Drawing.Point(160, 56);
-            this.txtPitch.Name = "txtPitch";
-            this.txtPitch.Size = new System.Drawing.Size(100, 20);
-            this.txtPitch.TabIndex = 5;
-            this.txtPitch.Text = "900";
-            // 
-            // btnOK
-            // 
-            this.btnOK.Location = new System.Drawing.Point(48, 94);
-            this.btnOK.Name = "btnOK";
-            this.btnOK.Size = new System.Drawing.Size(75, 23);
-            this.btnOK.TabIndex = 6;
-            this.btnOK.Text = "Ok";
-            this.btnOK.UseVisualStyleBackColor = true;
-            this.btnOK.Click += new System.EventHandler(this.btnOK_Click);
+            this.pnlYawPitch.Location = new System.Drawing.Point(77, 65);
+            this.pnlYawPitch.Name = "pnlYawPitch";
+            this.pnlYawPitch.Size = new System.Drawing.Size(200, 200);
+            this.pnlYawPitch.TabIndex = 0;
+            this.pnlYawPitch.MouseDown += new System.Windows.Forms.MouseEventHandler(this.pnlYawPitch_MouseDown);
+            this.pnlYawPitch.MouseMove += new System.Windows.Forms.MouseEventHandler(this.pnlYawPitch_MouseMove);
+            this.pnlYawPitch.MouseUp += new System.Windows.Forms.MouseEventHandler(this.pnlYawPitch_MouseUp);
             // 
             // ControleView
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(833, 503);
+            this.ClientSize = new System.Drawing.Size(945, 587);
             this.Controls.Add(this.panel2);
             this.Controls.Add(this.panel1);
             this.FormBorderStyle = System.Windows.Forms.FormBorderStyle.None;
@@ -151,7 +100,6 @@
             this.Text = "ConexaoView";
             this.panel1.ResumeLayout(false);
             this.panel2.ResumeLayout(false);
-            this.panel2.PerformLayout();
             this.ResumeLayout(false);
 
         }
@@ -161,12 +109,7 @@
         private System.Windows.Forms.Panel panel1;
         private System.Windows.Forms.Panel panel2;
         private System.Windows.Forms.Label label1;
-        private System.Windows.Forms.TextBox txtPitch;
-        private System.Windows.Forms.TextBox txtRow;
-        private System.Windows.Forms.TextBox txtYaw;
-        private System.Windows.Forms.Label label4;
-        private System.Windows.Forms.Label label3;
+        private System.Windows.Forms.Panel pnlYawPitch;
         private System.Windows.Forms.Label label2;
-        private System.Windows.Forms.Button btnOK;
     }
 }
