@@ -25,10 +25,24 @@ namespace DroneProject.ModelContext.Serial.FlyController
                 }
             }
         }
-        public FlyControllerSerial(string portName, int baudRate) : base(portName, baudRate)
+        public FlyControllerSerial(string portName, int baudRate)
         {
-            OnSerialDataReceived += FlyControllerSerial_OnSerialDataReceived;
+            PortName = portName;
+            BaudRate = baudRate;
+            OnSerialConnected += FlyControllerSerial_OnSerialConnected;
+            OnSerialDisconnected += FlyControllerSerial_OnSerialDisconnected;
         }
+
+        private void FlyControllerSerial_OnSerialDisconnected()
+        {
+            Console.WriteLine("Fly Controller Serial Desconectado");
+        }
+
+        private void FlyControllerSerial_OnSerialConnected()
+        {
+            Console.WriteLine("Fly Controller Serial Conectado");
+        }
+
         public void StartSerialDataExchange()
         {
             _stopThread = false;
@@ -42,10 +56,31 @@ namespace DroneProject.ModelContext.Serial.FlyController
             {
                 while (!_stopThread)
                 {
-                    var crsfData = ManualControl.Encode();
+                    if (false){
+                       try{
+                            //Check Connection
+                            if (!IsConnected)
+                            {
+                                Connect();
+                            }
 
-                    //Falta adicionar o tratamento de erro aqui
-                    SendData(crsfData, 1000);
+                            //Recebimento de dados
+                            if (SerialDataReceived != null){
+                                FlyControllerSerial_OnSerialDataReceived(SerialDataReceived);
+                                SerialDataReceived = null;
+                            }
+
+                            //Envio de dados
+                            var crsfData = ManualControl.Encode();
+                            SendData(crsfData, 1);
+
+                            
+                        }catch(Exception ex){
+
+                        } 
+                    }
+
+                    Thread.Sleep(10);
                 }
             });
             _threadSerialDataExchange.Start();
@@ -86,7 +121,7 @@ namespace DroneProject.ModelContext.Serial.FlyController
                     }
                 }
                 
-            }catch{
+            }catch(Exception ex){
 
             }
         }

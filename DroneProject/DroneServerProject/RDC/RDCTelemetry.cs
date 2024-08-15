@@ -1,14 +1,16 @@
 ﻿using CRSF;
 using RDC.Utils;
+using System;
+using System.Collections.Generic;
 
-namespace RDC.RDCProtocol
+namespace DroneServerProject.RDC
 {
     public class RDCTelemetry
     {
-        public CRSF_FRAMETYPE_BATTERY_SENSOR Battery {get; set; } = new();
-        public CRSF_FRAMETYPE_GPS Gps {get; set; } = new();
-        public CRSF_FRAMETYPE_ATTITUDE Orientation {get; set; } = new();
-        public CRSF_FRAMETYPE_FLIGHT_MODE FlighMode {get; set; } = new();
+        public CRSF_FRAMETYPE_BATTERY_SENSOR Battery {get; set; } = new CRSF_FRAMETYPE_BATTERY_SENSOR();
+        public CRSF_FRAMETYPE_GPS Gps {get; set; } = new CRSF_FRAMETYPE_GPS();
+        public CRSF_FRAMETYPE_ATTITUDE Orientation {get; set; } = new CRSF_FRAMETYPE_ATTITUDE();
+        public CRSF_FRAMETYPE_FLIGHT_MODE FlighMode {get; set; } = new CRSF_FRAMETYPE_FLIGHT_MODE();
         public RDCTelemetry(){}
         public RDCTelemetry(byte[] data){
             Decode(data);
@@ -51,15 +53,15 @@ namespace RDC.RDCProtocol
             index += flightModeData.Length;
 
             // Calcular checksum
-            byte[] arrayCheckSum = new byte[message.Length - 3];
+            byte[] arrayCheckSum = new byte[message.Length - 2];
             Array.Copy(message, 2, arrayCheckSum, 0, arrayCheckSum.Length);
-            message[message.Length - 1] = CRC8.ComputeChecksum(arrayCheckSum);
+            message[arrayCheckSum.Length - 1] = CRC8.ComputeChecksum(arrayCheckSum);
             
             return message;
         }
         public List<byte[]> SplitPackage(byte[] pacote, byte byteSplit){
             int index = 0;
-            List<byte[]> list = new();
+            List<byte[]> list = new List<byte[]>();
 
             while(index < pacote.Length){
                 

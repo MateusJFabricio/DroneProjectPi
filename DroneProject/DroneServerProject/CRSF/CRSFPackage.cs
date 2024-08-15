@@ -1,10 +1,12 @@
 using RDC.Utils;
+using System;
 
-namespace RDC{
-    public class RDCPackage{
+namespace CRSF{
+    public class CRSFPackage{
         public static byte[] GetPayload(byte[] data){
-            var payload = new byte[GetLenght(data) - 2];
-            Array.Copy(data, 3, payload, 0, payload.Length);
+            int payloadLenght = GetLenght(data) - 2;
+            var payload = new byte[payloadLenght];
+            Array.Copy(data, 3, payload, 0, payloadLenght);
             return payload;
         }
         public static int GetType(byte[] data){
@@ -23,7 +25,7 @@ namespace RDC{
             if (data.Length < 5)
                 return false;
             
-            if (data[0] != 0xFF)
+            if (data[0] != 200)
                 return false;
             
             if (!CheckCRC(data))

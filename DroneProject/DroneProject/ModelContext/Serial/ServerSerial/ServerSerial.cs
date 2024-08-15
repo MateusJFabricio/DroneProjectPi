@@ -1,11 +1,4 @@
 ﻿using RDC.RDCProtocol;
-using System;
-using System.Collections.Generic;
-using System.Data.Common;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using System.Transactions;
 
 namespace DroneProject.ModelContext.Serial.ServerSerial
 {
@@ -29,9 +22,20 @@ namespace DroneProject.ModelContext.Serial.ServerSerial
                 }
             }
         }
-        public ServerSerial(string portName, int baudRate) : base(portName, baudRate)
+        public ServerSerial(string portName, int baudRate)
         {
-            OnSerialDataReceived += ServerSerial_OnSerialDataReceived;
+            PortName = portName;
+            BaudRate = baudRate;
+            OnSerialConnected += ServerSerial_OnSerialConnected;
+            OnSerialDisconnected += ServerSerial_OnSerialDisconnected;
+        }
+        private void ServerSerial_OnSerialDisconnected()
+        {
+            Console.WriteLine("Server Serial Desconectado");
+        }
+        private void ServerSerial_OnSerialConnected()
+        {
+            Console.WriteLine("Server Serial Conectado");
         }
         public void StartSerialDataExchange()
         {
@@ -46,9 +50,27 @@ namespace DroneProject.ModelContext.Serial.ServerSerial
             {
                 while (!_stopThread)
                 {
-                    //Falta adicionar o tratamento de erro aqui
-                    SendData(Telemetria.Encode(), 1000);
-                    //SendDataAsync(Telemetria.RawData);
+                    try{
+                        //Check Connection
+                        if (!IsConnected)
+                        {
+                            Connect();
+                        }
+                        
+                        //Recebimento de dados
+                        if (NewDataAvailable){
+                            ServerSerial_OnSerialDataReceived(SerialDataReceived);
+                        }
+
+                        //Envio de dados
+                        //SendData(Telemetria.Encode(), 100);
+                        
+                        Console.WriteLine("Pitch: " + ManualControl.Pitch + "Yaw: " + ManualControl.Yaw + "Row: " + ManualControl.Row);
+                    }catch(Exception ex){
+
+                    }
+
+                    Thread.Sleep(100);
                 }
             });
             _threadSerialDataExchange.Start();
@@ -63,19 +85,20 @@ namespace DroneProject.ModelContext.Serial.ServerSerial
         {
             try
             {
-                object dataProtocol = RDCProtocol.Decode(data);
-                if (dataProtocol != null)
-                {
-                    //Pacote de Manual Control
-                    if (dataProtocol is RDCManualControl)
+                foreach(var pkt in RDCProtocol.Decode(data)){
+                    if (pkt != null)
                     {
-                        ManualControl = (RDCManualControl)dataProtocol;
+                        //Pacote de Manual Control
+                        if (pkt is RDCManualControl)
+                        {
+                            ManualControl = (RDCManualControl)pkt;
+                            
+                        }
                     }
                 }
             }
             catch (Exception)
             {
-
             }
         }
     }

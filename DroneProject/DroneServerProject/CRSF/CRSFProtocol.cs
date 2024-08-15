@@ -1,29 +1,31 @@
-﻿namespace CRSF
+﻿using System;
+using System.Collections.Generic;
+
+namespace CRSF
 {
     public static class CRSFProtocol
     {
         public static List<byte[]> SplitPackage(byte[] pacote, byte byteSplit){
             int index = 0;
-            List<byte[]> list = new();
+            List<byte[]> list = new List<byte[]>();
 
             while(index < pacote.Length){
                 
-                if(pacote[index] == byteSplit){
+                if(byteSplit == 0xC8){
                     int lenght = pacote[index + 1];
                     if (pacote.Length < index + 2 + lenght) break;
                     byte[] b = new byte[lenght + 2];
-                    Array.Copy(pacote, index, b, 0, b.Length);
+                    Array.Copy(pacote, index, b, 0, lenght + 2);
                     list.Add(b);
                     index+=b.Length;
-                }else
-                    index++;
+                }
             }
 
             return list;
         }
         public static List<object> Decode(byte[] pacote){
             var pktList = SplitPackage(pacote, 0XC8);
-            List<object> returnList = new();
+            List<object> returnList = new List<object>();
 
             foreach(var pkt in pktList){
                 //Check o tamanho do pacote

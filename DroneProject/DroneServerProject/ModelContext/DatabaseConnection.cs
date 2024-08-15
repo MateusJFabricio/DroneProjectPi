@@ -4,7 +4,7 @@ namespace DroneProject.ModelContext.Database
 {
     public class DatabaseConnection
     {
-        public static string ConnectionString { get; set; } = "Data Source=DroneServer.db";
+        public static string ConnectionString { get; set; } = "Data Source=Drone.db";
         public SqliteConnection Connection { get; set; } = new SqliteConnection(ConnectionString);
 
         public void Conectar()

@@ -15,30 +15,36 @@ namespace View{
         public void StartDataExchanger(){
             if (_threadDataExchanger == null){
                 _threadDataExchanger = new Thread(()=>{
-                    if (FlyControllerSerial.IsConnected){
-                        if (ServerSerial.IsConnected){
+                    while(true){
+                        try{
+                            if (FlyControllerSerial.IsConnected){
+                                if (ServerSerial.IsConnected){
 
-                            //Fly Controller to Server
-                            ServerSerial.Telemetria.Battery = FlyControllerSerial.Battery;
-                            ServerSerial.Telemetria.Gps = FlyControllerSerial.Gps;
-                            ServerSerial.Telemetria.Orientation = FlyControllerSerial.Orientation;
-                            ServerSerial.Telemetria.FlighMode = FlyControllerSerial.FlighMode;
+                                    //Fly Controller to Server
+                                    ServerSerial.Telemetria.Battery = FlyControllerSerial.Battery;
+                                    ServerSerial.Telemetria.Gps = FlyControllerSerial.Gps;
+                                    ServerSerial.Telemetria.Orientation = FlyControllerSerial.Orientation;
+                                    ServerSerial.Telemetria.FlighMode = FlyControllerSerial.FlighMode;
 
-                            //Server to Fly Controller
-                            FlyControllerSerial.ManualControl.Channels = FlyControllerSerial.ManualControl.Channels;
+                                    //Server to Fly Controller
+                                    FlyControllerSerial.ManualControl.Channels = ServerSerial.ManualControl.Channels;
 
-                            Thread.Sleep(1000); //A cada 1 seg
+                                }
+                            }
+                        }catch(Exception ex){
+
                         }
+
+                        Thread.Sleep(100);
                     }
                 });
             }
+            _threadDataExchanger.Start();
         }
         public void StartSerial(){
             StartFlyControllerSerial();
             StartServerSerial();
-            if (FlyControllerSerial.IsConnected && ServerSerial.IsConnected){
-                StartDataExchanger();
-            }
+            //StartDataExchanger();
         }
         public void StartFlyControllerSerial(){
             FlyControllerModel = SerialDataContext.GetSerialByName("FLY_CONTROLLER");
@@ -50,24 +56,20 @@ namespace View{
                 FlyControllerSerial.Disconnect();
             }
 
-            FlyControllerSerial.Connect();
             FlyControllerSerial.StartSerialDataExchange();
         }
         public void StartServerSerial(){
             ServerModel = SerialDataContext.GetSerialByName("SERVER");
-            Console.WriteLine($"Server - {ServerModel.PortCOM} - {ServerModel.BaudRate}");
             if (ServerSerial == null){
-                ServerSerial = new(ServerModel.PortCOM, ServerModel.BaudRate); //416666
+                ServerSerial = new(ServerModel.PortCOM, ServerModel.BaudRate); //57600
             }else
             {
                 ServerSerial.StopSerialDataExchange();
                 ServerSerial.Disconnect();
             }
 
-            ServerSerial.Connect();
             ServerSerial.StartSerialDataExchange();
         }
-
         public void StopSerial(){
             if (FlyControllerSerial != null)
             {

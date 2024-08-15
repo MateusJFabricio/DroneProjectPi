@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+using System;
 using System.Numerics;
 using System.Text;
 using RDC.Utils;
@@ -18,8 +18,8 @@ namespace CRSF{
         public void Decode(byte[] data){
             if (CRSFPackage.CheckPacket(data)){
                 var payload = CRSFPackage.GetPayload(data);
-                Voltage = BitConverter.ToInt16([payload[1], payload[0]], 0)/10;
-                Current = BitConverter.ToInt16([payload[3], payload[2]], 0)/10;
+                Voltage = BitConverter.ToInt16(new byte[] { payload[1], payload[0] }, 0)/10;
+                Current = BitConverter.ToInt16(new byte[] { payload[3], payload[2] }, 0)/10;
                 UsedCapacity = 0;// BitConverter.ToSingle([0, payload[6], payload[5], payload[4]], 0);
                 Percentage = Convert.ToSingle(data[7]);
 
@@ -55,11 +55,11 @@ namespace CRSF{
         public void Decode(byte[] data){
             if (CRSFPackage.CheckPacket(data)){
                 var payload = CRSFPackage.GetPayload(data);
-                Latitude = float.Parse(BitConverter.ToInt32([payload[3], payload[2], payload[1], payload[0]], 0).ToString()) / 10000000;
-                Longitude = float.Parse(BitConverter.ToInt32([payload[7], payload[6], payload[5], payload[4]], 0).ToString()) / 10000000;
-                Speed = float.Parse(BitConverter.ToInt16([payload[9], payload[8]], 0).ToString());// / 10;
-                Course = BitConverter.ToInt16([payload[11], payload[10]], 0) / 100;
-                Altitude = BitConverter.ToUInt16([payload[13], payload[12]], 0) - 1000;
+                Latitude = float.Parse(BitConverter.ToInt32(new byte[] { payload[3], payload[2], payload[1], payload[0]}, 0).ToString()) / 10000000;
+                Longitude = float.Parse(BitConverter.ToInt32(new byte[] { payload[7], payload[6], payload[5], payload[4] }, 0).ToString()) / 10000000;
+                Speed = float.Parse(BitConverter.ToInt16(new byte[] { payload[9], payload[8] }, 0).ToString());// / 10;
+                Course = BitConverter.ToInt16(new byte[] { payload[11], payload[10]}, 0) / 100;
+                Altitude = BitConverter.ToUInt16(new byte[] { payload[13], payload[12] }, 0) - 1000;
                 SatelliteCount = Convert.ToInt32(payload[14]);
 
                 _rawPacket = data;
@@ -203,12 +203,11 @@ namespace CRSF{
         {
             int bytePosition = (offset / 8) + 3;
             int bitPosition = offset % 8;
-            
+
             uint tempShort = (uint) (channel << bitPosition);
             byteArray[bytePosition] = (byte) (BitConverter.GetBytes(tempShort)[0] | byteArray[bytePosition]);
             byteArray[bytePosition + 1] = (byte) (BitConverter.GetBytes(tempShort)[1] | byteArray[bytePosition + 1]);
             byteArray[bytePosition + 2] = (byte) (BitConverter.GetBytes(tempShort)[2] | byteArray[bytePosition + 2]);
-
             offset += 11;
         }
     }
@@ -228,9 +227,9 @@ namespace CRSF{
         {
             if (CRSFPackage.CheckPacket(data)){
                 var payload = CRSFPackage.GetPayload(data);
-                Pitch = ConvertToAngle(BitConverter.ToInt16([payload[1], payload[0]], 0));
-                Row = ConvertToAngle(BitConverter.ToInt16([payload[3], payload[2]], 0));
-                Yaw = ConvertToAngle(BitConverter.ToInt16([payload[5], payload[4]], 0));
+                Pitch = ConvertToAngle(BitConverter.ToInt16(new byte[] { payload[1], payload[0] }, 0));
+                Row = ConvertToAngle(BitConverter.ToInt16(new byte[] { payload[3], payload[2] }, 0));
+                Yaw = ConvertToAngle(BitConverter.ToInt16(new byte[] { payload[5], payload[4] }, 0));
 
                 _rawPacket = data;
             }
@@ -249,7 +248,7 @@ namespace CRSF{
             return data;
         }
         private float ConvertToAngle(short value){
-            return float.Parse(value.ToString()) / 10000 * 180/float.Pi;
+            return float.Parse(value.ToString()) / 10000 * 180/ 3.1415f;
         }
     }
     public class CRSF_FRAMETYPE_FLIGHT_MODE : ICRSFPackage
@@ -277,8 +276,6 @@ namespace CRSF{
         }
         public byte[] ParseToRDC()
         {
-            if (FlightMode.Length < 1)
-                FlightMode = "OFF";
             return Encoding.ASCII.GetBytes(FlightMode);
         }
     }

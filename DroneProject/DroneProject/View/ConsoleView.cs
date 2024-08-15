@@ -1,4 +1,5 @@
 using System.ComponentModel.Design;
+using System.IO.Ports;
 using System.Runtime.InteropServices;
 using DroneProject.ModelContext.Database;
 
@@ -10,6 +11,7 @@ namespace View
         Application App = new();
         public void Start(bool interact){
             Console.Write("Inicializando ConsoleView");
+            Console.BackgroundColor = ConsoleColor.Green;
             if (interact){
                 _thread = new Thread(Run);
                 _thread.Start();
@@ -49,10 +51,47 @@ namespace View
                         InicializarServerSerial();
                         break;
                     case 9:
+                        VisualizarServerSerial();
+                        break;
+                    case 10:
                         StopProcess();
                         break;
                 }
             }
+        }
+        public void VisualizarServerSerial(){
+            Console.WriteLine("");
+            Console.WriteLine("Server serial test");
+
+            var _thread = new Thread(()=>{
+                Console.WriteLine("Iniciando conexão");
+                try{
+                    var serial = new SerialPort("/dev/ttyUSB1", 57600);
+                    serial.Open();
+                    serial.DataReceived += (object sender, SerialDataReceivedEventArgs e)=>
+                    {
+                        if(serial.BytesToRead > 0){
+                                byte[] data = new byte[serial.BytesToRead];
+                                serial.Read(data, 0, data.Length);
+                                Console.WriteLine("N: " + string.Join(",",data));
+                        }
+                    };
+                    DateTime timeStart = DateTime.Now;
+                    int i = 0;
+                    while((DateTime.Now - timeStart).TotalSeconds < 30){
+                        serial.Write("Testandooooooooooooooo");
+                        Thread.Sleep(10);
+                    }
+                    serial.Close();
+                }catch(Exception ex){
+                    Console.WriteLine("Erro: "+ ex.Message);
+                }finally{
+                    Console.WriteLine("Conexão fechada");
+                }
+            });
+
+            _thread.Start();
+            _thread.Join();
         }
         public void StopProcess(){
             Console.WriteLine("");
@@ -147,7 +186,8 @@ namespace View
                 Console.WriteLine(" 6 - Status");
                 Console.WriteLine(" 7 - FlyController Start Serial");
                 Console.WriteLine(" 8 - Server Start Serial");
-                Console.WriteLine(" 9 - Fechar app");
+                Console.WriteLine(" 9 - Visualizar Server Serial");
+                Console.WriteLine(" 10 - Fechar app");
 
                 int key = -1;
                 if (int.TryParse(Console.ReadLine().ToString(), out key)){
@@ -267,14 +307,6 @@ namespace View
             Console.WriteLine("");
             try
             {
-                Console.WriteLine("Buscando o banco de dados");
-                //Database path
-                if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux)){
-                    DatabaseConnection.ConnectionString = "Data Source=/home/Robosoft/Desktop/GIT/DronePIProject/DroneProject/Drone.db";
-                }else{
-                    DatabaseConnection.ConnectionString = "Data Source=Drone.db";
-                }
-                
                 Console.WriteLine("Carregando os parametros");
                 //Buscar dados e parametros
                 ParameterModelContext parameter = new ParameterModelContext();
@@ -285,17 +317,6 @@ namespace View
                 Console.WriteLine();
                 Console.WriteLine("Inicializando as comunicações seriais");
                 App.StartSerial();
-
-                //Status Bateria
-                Console.WriteLine(" 5 - Status Bateria");
-                if(App.FlyControllerSerial != null && App.FlyControllerSerial.Battery != null){
-                    var bateria = App.FlyControllerSerial.Battery;
-                    Console.WriteLine($"    Tensão: {bateria.Voltage} - Corrente: {bateria.Current}");
-                    Console.WriteLine($"    Porcentagem: {bateria.Percentage} - Capacidade usada: {bateria.UsedCapacity}");
-                }else
-                {
-                    Console.WriteLine("     Bateria não encontrada");
-                }
             }
             catch (Exception ex) 
             {
