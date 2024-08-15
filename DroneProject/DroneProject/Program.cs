@@ -40,7 +40,7 @@ namespace DroneProject
                         //DataExchange
                         try{
                             if (serverSerialPort.IsOpen && SerialDataReceived != null){
-                                Console.WriteLine("New: " + string.Join("-", SerialDataReceived));
+                                Console.WriteLine("New: " + string.Join(",", SerialDataReceived));
                             }
                         }catch(Exception ex){
 
