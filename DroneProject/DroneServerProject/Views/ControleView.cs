@@ -174,6 +174,11 @@ namespace DroneServerProject.Views
                 btnDroneEnable.BackColor = SystemColors.Control;
             }
         }
+
+        private void ControleView_Resize(object sender, EventArgs e)
+        {
+            InicializaControles();
+        }
     }
 
     public class VirtualControl

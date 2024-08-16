@@ -23,6 +23,8 @@ namespace DroneProject
 
         public static byte[] FlyControllerSerialDataReceived { get; private set; }
         public static byte[] ServerSerialDataReceived { get; private set; }
+        public static object ServerSerialLocker { get; private set; } = new object();
+        public static object FlyControllerSerialLocker { get; private set; } = new object();
 
         public static SerialPort FlyControllerSerial;
         public static SerialPort ServerSerial;
@@ -43,13 +45,27 @@ namespace DroneProject
                 Console.WriteLine("Inicializando task server...");
                 try
                 {
+                    Task _taskServerSendData = new Task(async () =>
+                    {
+                        while (true)
+                        {
+                            ServerWriteData();
+                            await Task.Delay(1000);
+                        }
+                    });
+
                     while (true)
                     {
                         try
                         {
                             ServerCheckConnection();
+
+                            //if (_taskServerSendData.Status == TaskStatus.Created)
+                            //{
+                            //    _taskServerSendData. Start();
+                            //}
+
                             ServerReadData();
-                            ServerWriteData();
                             Task.Delay(50);
                         }
                         catch (Exception ex)
@@ -76,7 +92,7 @@ namespace DroneProject
                         try
                         {
                             FlyControllerCheckConnection();
-                            FlyControllerReadData();
+                            //FlyControllerReadData();
                             FlyControllerWriteData();
                         }
                         catch (Exception ex)
@@ -120,12 +136,12 @@ namespace DroneProject
 
         private static void ServerCheckConnection()
         {
-            if (ServerSerial == null) 
+            if (ServerSerial == null)
                 ServerSerial = new SerialPort(ServerModel.PortCOM, ServerModel.BaudRate);
 
             if (!ServerSerial.IsOpen)
             {
-                try 
+                try
                 {
                     ServerSerial.Open();
                     Console.WriteLine("Server serial Open");
@@ -138,39 +154,49 @@ namespace DroneProject
         }
         private static void FlyControllerWriteData()
         {
-            if (FlyControllerSerial.IsOpen)
+            lock(FlyControllerSerialLocker)
             {
-                var manual = new CRSF_FRAMETYPE_RC_CHANNELS_PACKED(RDCManualControl.Channels);
-                var pkt = manual.Encode();
+                if (FlyControllerSerial.IsOpen)
+                {
+                    var manual = new CRSF_FRAMETYPE_RC_CHANNELS_PACKED(RDCManualControl.Channels);
+                    var pkt = manual.Encode();
 
-                FlyControllerSerial.Write(pkt, 0, pkt.Length);
+                    FlyControllerSerial.Write(pkt, 0, pkt.Length);
+                    Console.WriteLine("A:" + manual.Channels[0] + ", E:" + manual.Channels[1] + ", R:" + manual.Channels[2] + ", T:" + manual.Channels[3]);
+                }
             }
         }
 
         private static void ServerWriteData()
         {
-            if (ServerSerial.IsOpen)
+            lock (ServerSerialLocker)
             {
-                var pkt = Gps.ParseToRDC();
+                if (ServerSerial.IsOpen)
+                {
+                    var pkt = Gps.ParseToRDC();
 
-                ServerSerial.Write(pkt, 0, pkt.Length);
+                    ServerSerial.Write(pkt, 0, pkt.Length);
+                }
             }
         }
 
         private static void FlyControllerReadData()
         {
-            if (FlyControllerSerial.IsOpen)
+            lock (FlyControllerSerialLocker)
             {
-                if (FlyControllerSerial.BytesToRead > 10)
+                if (FlyControllerSerial.IsOpen)
                 {
-                    byte[] data = new byte[FlyControllerSerial.BytesToRead];
-                    FlyControllerSerial.Read(data, 0, data.Length);
-
-                    foreach (var pkt in CRSFProtocol.Decode(data))
+                    if (FlyControllerSerial.BytesToRead > 10)
                     {
-                        if (pkt is CRSF_FRAMETYPE_GPS)
+                        byte[] data = new byte[FlyControllerSerial.BytesToRead];
+                        FlyControllerSerial.Read(data, 0, data.Length);
+
+                        foreach (var pkt in CRSFProtocol.Decode(data))
                         {
-                            Gps = (CRSF_FRAMETYPE_GPS)pkt;
+                            if (pkt is CRSF_FRAMETYPE_GPS)
+                            {
+                                Gps = (CRSF_FRAMETYPE_GPS)pkt;
+                            }
                         }
                     }
                 }
@@ -179,18 +205,21 @@ namespace DroneProject
 
         private static void ServerReadData()
         {
-            if (ServerSerial.IsOpen)
+            lock (ServerSerialLocker)
             {
-                if (ServerSerial.BytesToRead > 10)
+                if (ServerSerial.IsOpen)
                 {
-                    byte[] data = new byte[ServerSerial.BytesToRead];
-                    ServerSerial.Read(data, 0, data.Length);
-
-                    foreach (var pkt in RDCProtocol.Decode(data))
+                    if (ServerSerial.BytesToRead > 10)
                     {
-                        if (pkt is RDCManualControl)
+                        byte[] data = new byte[ServerSerial.BytesToRead];
+                        ServerSerial.Read(data, 0, data.Length);
+
+                        foreach (var pkt in RDCProtocol.Decode(data))
                         {
-                            RDCManualControl = (RDCManualControl)pkt;
+                            if (pkt is RDCManualControl)
+                            {
+                                RDCManualControl = (RDCManualControl)pkt;
+                            }
                         }
                     }
                 }

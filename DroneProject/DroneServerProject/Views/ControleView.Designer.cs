@@ -32,6 +32,7 @@
             this.panel1 = new System.Windows.Forms.Panel();
             this.label1 = new System.Windows.Forms.Label();
             this.panel2 = new System.Windows.Forms.Panel();
+            this.btnDroneEnable = new System.Windows.Forms.Button();
             this.tbTrotle = new System.Windows.Forms.TrackBar();
             this.lblRow = new System.Windows.Forms.Label();
             this.lblTrotle = new System.Windows.Forms.Label();
@@ -45,7 +46,6 @@
             this.tbRow = new System.Windows.Forms.TrackBar();
             this.tbPitch = new System.Windows.Forms.TrackBar();
             this.timer = new System.Windows.Forms.Timer(this.components);
-            this.btnDroneEnable = new System.Windows.Forms.Button();
             this.panel1.SuspendLayout();
             this.panel2.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.tbTrotle)).BeginInit();
@@ -95,6 +95,16 @@
             this.panel2.Name = "panel2";
             this.panel2.Size = new System.Drawing.Size(945, 537);
             this.panel2.TabIndex = 1;
+            // 
+            // btnDroneEnable
+            // 
+            this.btnDroneEnable.Location = new System.Drawing.Point(87, 395);
+            this.btnDroneEnable.Name = "btnDroneEnable";
+            this.btnDroneEnable.Size = new System.Drawing.Size(119, 60);
+            this.btnDroneEnable.TabIndex = 12;
+            this.btnDroneEnable.Text = "Enable";
+            this.btnDroneEnable.UseVisualStyleBackColor = true;
+            this.btnDroneEnable.Click += new System.EventHandler(this.btnDroneEnable_Click);
             // 
             // tbTrotle
             // 
@@ -216,16 +226,6 @@
             this.timer.Interval = 10;
             this.timer.Tick += new System.EventHandler(this.timer_Tick);
             // 
-            // btnDroneEnable
-            // 
-            this.btnDroneEnable.Location = new System.Drawing.Point(87, 395);
-            this.btnDroneEnable.Name = "btnDroneEnable";
-            this.btnDroneEnable.Size = new System.Drawing.Size(119, 60);
-            this.btnDroneEnable.TabIndex = 12;
-            this.btnDroneEnable.Text = "Enable";
-            this.btnDroneEnable.UseVisualStyleBackColor = true;
-            this.btnDroneEnable.Click += new System.EventHandler(this.btnDroneEnable_Click);
-            // 
             // ControleView
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
@@ -237,6 +237,7 @@
             this.Name = "ControleView";
             this.Text = "ConexaoView";
             this.Load += new System.EventHandler(this.ControleView_Load);
+            this.Resize += new System.EventHandler(this.ControleView_Resize);
             this.panel1.ResumeLayout(false);
             this.panel2.ResumeLayout(false);
             this.panel2.PerformLayout();
