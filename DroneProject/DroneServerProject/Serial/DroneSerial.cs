@@ -25,8 +25,14 @@ namespace DroneServerProject.Serial
                 }
             }
         }
-        public DroneSerial(string portName, int baudRate) : base(portName, baudRate)
+        public DroneSerial()
         {
+
+        }
+        public DroneSerial(string portName, int baudRate) 
+        {
+            PortName = portName;
+            BaudRate = baudRate;
             OnSerialDataReceived += ServerSerial_OnSerialDataReceived;
         }
         public void StartSerialDataExchange()

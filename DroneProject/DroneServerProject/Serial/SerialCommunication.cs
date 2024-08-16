@@ -25,11 +25,6 @@ namespace DroneServerProject.Serial
         public event SerialDataReceived OnSerialDataReceived;
         public bool LockDataSend = false;
 
-        public SerialCommunication(string portName, int baudRate)
-        {
-            PortName = portName;
-            BaudRate = baudRate;
-        }
         public void Connect()
         {
             Disconnect();

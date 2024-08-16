@@ -54,6 +54,11 @@ namespace DroneServerProject.Views
                     {
                         Drone.DroneSerial = new DroneSerial(portName, 57600);
                     }
+                    else
+                    {
+                        Drone.DroneSerial.PortName = portName;
+                        Drone.DroneSerial.BaudRate = 57600;
+                    }
 
                     Drone.DroneSerial.Connect();
                     Drone.DroneSerial.StartSerialDataExchange();

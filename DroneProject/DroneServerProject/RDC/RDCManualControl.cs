@@ -12,8 +12,8 @@ namespace DroneServerProject.RDC
         public const int DATA_LENGTH = 32;
         private const int ROW = 0;
         private const int PITCH = 1;
-        private const int TROTLE = 2;
-        private const int YAW = 3;
+        private const int TROTLE = 3;
+        private const int YAW = 2;
         private const int ENABLE = 4;
         public ushort Row
         {

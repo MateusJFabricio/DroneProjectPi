@@ -72,8 +72,8 @@
             // splitContainer1.Panel2
             // 
             this.splitContainer1.Panel2.Controls.Add(this.pnlAplicacao);
-            this.splitContainer1.Size = new System.Drawing.Size(922, 592);
-            this.splitContainer1.SplitterDistance = 244;
+            this.splitContainer1.Size = new System.Drawing.Size(1093, 592);
+            this.splitContainer1.SplitterDistance = 289;
             this.splitContainer1.TabIndex = 6;
             // 
             // tableLayoutPanelMain
@@ -94,7 +94,7 @@
             this.tableLayoutPanelMain.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 50F));
             this.tableLayoutPanelMain.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 50F));
             this.tableLayoutPanelMain.RowStyles.Add(new System.Windows.Forms.RowStyle());
-            this.tableLayoutPanelMain.Size = new System.Drawing.Size(244, 592);
+            this.tableLayoutPanelMain.Size = new System.Drawing.Size(289, 592);
             this.tableLayoutPanelMain.TabIndex = 0;
             // 
             // tableLayoutPanel4
@@ -109,7 +109,7 @@
             this.tableLayoutPanel4.Name = "tableLayoutPanel4";
             this.tableLayoutPanel4.RowCount = 1;
             this.tableLayoutPanel4.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 100F));
-            this.tableLayoutPanel4.Size = new System.Drawing.Size(236, 44);
+            this.tableLayoutPanel4.Size = new System.Drawing.Size(281, 44);
             this.tableLayoutPanel4.TabIndex = 3;
             // 
             // lblConfiguracao
@@ -118,7 +118,7 @@
             this.lblConfiguracao.Font = new System.Drawing.Font("Microsoft Sans Serif", 14.25F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.lblConfiguracao.Location = new System.Drawing.Point(53, 0);
             this.lblConfiguracao.Name = "lblConfiguracao";
-            this.lblConfiguracao.Size = new System.Drawing.Size(180, 44);
+            this.lblConfiguracao.Size = new System.Drawing.Size(225, 44);
             this.lblConfiguracao.TabIndex = 2;
             this.lblConfiguracao.Text = "Configuração";
             this.lblConfiguracao.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
@@ -146,7 +146,7 @@
             this.tableLayoutPanel1.Name = "tableLayoutPanel1";
             this.tableLayoutPanel1.RowCount = 1;
             this.tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 100F));
-            this.tableLayoutPanel1.Size = new System.Drawing.Size(236, 44);
+            this.tableLayoutPanel1.Size = new System.Drawing.Size(281, 44);
             this.tableLayoutPanel1.TabIndex = 2;
             // 
             // lblPlanoTrabalho
@@ -155,7 +155,7 @@
             this.lblPlanoTrabalho.Font = new System.Drawing.Font("Microsoft Sans Serif", 14.25F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.lblPlanoTrabalho.Location = new System.Drawing.Point(53, 0);
             this.lblPlanoTrabalho.Name = "lblPlanoTrabalho";
-            this.lblPlanoTrabalho.Size = new System.Drawing.Size(180, 44);
+            this.lblPlanoTrabalho.Size = new System.Drawing.Size(225, 44);
             this.lblPlanoTrabalho.TabIndex = 2;
             this.lblPlanoTrabalho.Text = "Plano de Trabalho";
             this.lblPlanoTrabalho.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
@@ -183,7 +183,7 @@
             this.tableLayoutPanel3.Name = "tableLayoutPanel3";
             this.tableLayoutPanel3.RowCount = 1;
             this.tableLayoutPanel3.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 100F));
-            this.tableLayoutPanel3.Size = new System.Drawing.Size(236, 44);
+            this.tableLayoutPanel3.Size = new System.Drawing.Size(281, 44);
             this.tableLayoutPanel3.TabIndex = 1;
             // 
             // lblControle
@@ -192,7 +192,7 @@
             this.lblControle.Font = new System.Drawing.Font("Microsoft Sans Serif", 14.25F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.lblControle.Location = new System.Drawing.Point(53, 0);
             this.lblControle.Name = "lblControle";
-            this.lblControle.Size = new System.Drawing.Size(180, 44);
+            this.lblControle.Size = new System.Drawing.Size(225, 44);
             this.lblControle.TabIndex = 2;
             this.lblControle.Text = "Controle";
             this.lblControle.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
@@ -220,7 +220,7 @@
             this.tableLayoutPanel2.Name = "tableLayoutPanel2";
             this.tableLayoutPanel2.RowCount = 1;
             this.tableLayoutPanel2.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 100F));
-            this.tableLayoutPanel2.Size = new System.Drawing.Size(236, 44);
+            this.tableLayoutPanel2.Size = new System.Drawing.Size(281, 44);
             this.tableLayoutPanel2.TabIndex = 0;
             // 
             // pbConexao
@@ -240,7 +240,7 @@
             this.lblConexao.Font = new System.Drawing.Font("Microsoft Sans Serif", 14.25F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.lblConexao.Location = new System.Drawing.Point(53, 0);
             this.lblConexao.Name = "lblConexao";
-            this.lblConexao.Size = new System.Drawing.Size(180, 44);
+            this.lblConexao.Size = new System.Drawing.Size(225, 44);
             this.lblConexao.TabIndex = 1;
             this.lblConexao.Text = "Conexão";
             this.lblConexao.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
@@ -252,7 +252,7 @@
             this.pnlAplicacao.Dock = System.Windows.Forms.DockStyle.Fill;
             this.pnlAplicacao.Location = new System.Drawing.Point(0, 0);
             this.pnlAplicacao.Name = "pnlAplicacao";
-            this.pnlAplicacao.Size = new System.Drawing.Size(674, 592);
+            this.pnlAplicacao.Size = new System.Drawing.Size(800, 592);
             this.pnlAplicacao.TabIndex = 0;
             this.pnlAplicacao.Resize += new System.EventHandler(this.pnlAplicacao_Resize);
             // 
@@ -260,7 +260,7 @@
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(922, 592);
+            this.ClientSize = new System.Drawing.Size(1093, 592);
             this.Controls.Add(this.splitContainer1);
             this.Name = "FormMain";
             this.Text = "Drone Server";

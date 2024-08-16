@@ -10,7 +10,7 @@ namespace DroneServerProject.Controller
 {
     public class DroneController
     {
-        public DroneSerial DroneSerial { get; set; }
+        public DroneSerial DroneSerial { get; set; } = new DroneSerial();
         public DroneController() 
         {
             
