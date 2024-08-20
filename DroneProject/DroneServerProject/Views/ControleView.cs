@@ -89,8 +89,8 @@ namespace DroneServerProject.Views
                     var bitmap = VirtualControlYawPitch.DrawControl();
                     g.DrawImage(bitmap, 0, 0);
                 }
-                lblPitch.Text = "Pitch: " + Math.Round(VirtualControlYawPitch.PointerScaledPositionX * 100).ToString();
-                lblYaw.Text = "Yaw: " + Math.Round(VirtualControlYawPitch.PointerScaledPositionY * 100).ToString();
+                lblPitch.Text = "Pitch: " + Math.Round(VirtualControlYawPitch.PointerScaledPositionY * 100).ToString();
+                lblYaw.Text = "Yaw: " + Math.Round(VirtualControlYawPitch.PointerScaledPositionX * 100).ToString();
             }
         }
 
@@ -112,8 +112,6 @@ namespace DroneServerProject.Views
                     var bitmap = VirtualControlTrotleRow.DrawControl();
                     g.DrawImage(bitmap, 0, 0);
                 }
-                lblTrotle.Text = "Trotle: " + Math.Round(VirtualControlTrotleRow.PointerScaledPositionX * 100).ToString();
-                lblRow.Text = "Row: " + Math.Round(VirtualControlTrotleRow.PointerScaledPositionY * 100).ToString();
             }
         }
 
@@ -140,24 +138,24 @@ namespace DroneServerProject.Views
                     var bitmap = VirtualControlTrotleRow.DrawControl();
                     g.DrawImage(bitmap, 0, 0);
                 }
-                lblTrotle.Text = "Trotle: " + Math.Round(VirtualControlTrotleRow.PointerScaledPositionX * 100).ToString();
-                lblRow.Text = "Row: " + Math.Round(VirtualControlTrotleRow.PointerScaledPositionY * 100).ToString();
+                lblTrotle.Text = "Trotle: " + Math.Round(VirtualControlTrotleRow.PointerScaledPositionY * 100).ToString();
+                lblRow.Text = "Row: " + Math.Round(VirtualControlTrotleRow.PointerScaledPositionX * 100).ToString();
             }
         }
 
         private void timer_Tick(object sender, EventArgs e)
         {
-            DroneController.DroneSerial.ManualControl.Yaw = Convert.ToUInt16(VirtualControlYawPitch.PointerScaledPositionX * 1000 + 1000);
+            DroneController.DroneSerial.ManualControl.Trotle = Convert.ToUInt16(VirtualControlYawPitch.PointerScaledPositionX * 1000 + 1000);
             DroneController.DroneSerial.ManualControl.Pitch = Convert.ToUInt16(VirtualControlYawPitch.PointerScaledPositionY * 1000 + 1000);
-            DroneController.DroneSerial.ManualControl.Trotle = Convert.ToUInt16(VirtualControlTrotleRow.PointerScaledPositionX * 1000 + 1000);
-            DroneController.DroneSerial.ManualControl.Row = Convert.ToUInt16(VirtualControlTrotleRow.PointerScaledPositionY * 1000 + 1000);
+            DroneController.DroneSerial.ManualControl.Row = Convert.ToUInt16(VirtualControlTrotleRow.PointerScaledPositionX * 1000 + 1000);
+            DroneController.DroneSerial.ManualControl.Yaw = Convert.ToUInt16(VirtualControlTrotleRow.PointerScaledPositionY * 1000 + 1000);
             if (DroneEnable)
             {
                 DroneController.DroneSerial.ManualControl.Enable = 1400;
             }
             else
             {
-                DroneController.DroneSerial.ManualControl.Enable = 720;
+                DroneController.DroneSerial.ManualControl.Enable = 172;
             }
             
         }

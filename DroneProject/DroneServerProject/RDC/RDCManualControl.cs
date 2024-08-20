@@ -12,8 +12,8 @@ namespace DroneServerProject.RDC
         public const int DATA_LENGTH = 32;
         private const int ROW = 0;
         private const int PITCH = 1;
-        private const int TROTLE = 3;
         private const int YAW = 2;
+        private const int TROTLE = 3;
         private const int ENABLE = 4;
         public ushort Row
         {
@@ -56,6 +56,11 @@ namespace DroneServerProject.RDC
             if (payload.Length != DATA_LENGTH)
             {
                 throw new Exception("Data nok");
+            }
+
+            for (var i = 0; i < 16; i++)
+            {
+                Channels[i] = BitConverter.ToUInt16(payload, i * 2);
             }
         }
 

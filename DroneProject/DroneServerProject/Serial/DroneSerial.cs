@@ -51,7 +51,8 @@ namespace DroneServerProject.Serial
                     //Falta adicionar o tratamento de erro aqui
                     try
                     {
-                        SendData(ManualControl.Encode(), 10);
+                        SendData(ManualControl.Encode(), 0);
+                        Console.WriteLine("Yaw: " + ManualControl.Yaw + ", Pitch: " + ManualControl.Pitch);
                     }
                     catch (Exception ex)
                     {

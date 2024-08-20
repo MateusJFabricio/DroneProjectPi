@@ -18,8 +18,8 @@ namespace CRSF{
         public void Decode(byte[] data){
             if (CRSFPackage.CheckPacket(data)){
                 var payload = CRSFPackage.GetPayload(data);
-                Voltage = BitConverter.ToInt16([payload[1], payload[0]], 0)/10;
-                Current = BitConverter.ToInt16([payload[3], payload[2]], 0)/10;
+                Voltage = BitConverter.ToInt16(new byte[2] { payload[1], payload[0] }, 0)/10;
+                Current = BitConverter.ToInt16(new byte[2] { payload[3], payload[2] }, 0)/10;
                 UsedCapacity = 0;// BitConverter.ToSingle([0, payload[6], payload[5], payload[4]], 0);
                 Percentage = Convert.ToSingle(data[7]);
 
@@ -55,11 +55,11 @@ namespace CRSF{
         public void Decode(byte[] data){
             if (CRSFPackage.CheckPacket(data)){
                 var payload = CRSFPackage.GetPayload(data);
-                Latitude = float.Parse(BitConverter.ToInt32([payload[3], payload[2], payload[1], payload[0]], 0).ToString()) / 10000000;
-                Longitude = float.Parse(BitConverter.ToInt32([payload[7], payload[6], payload[5], payload[4]], 0).ToString()) / 10000000;
-                Speed = float.Parse(BitConverter.ToInt16([payload[9], payload[8]], 0).ToString());// / 10;
-                Course = BitConverter.ToInt16([payload[11], payload[10]], 0) / 100;
-                Altitude = BitConverter.ToUInt16([payload[13], payload[12]], 0) - 1000;
+                Latitude = float.Parse(BitConverter.ToInt32(new byte[4] { payload[3], payload[2], payload[1], payload[0] }, 0).ToString()) / 10000000;
+                Longitude = float.Parse(BitConverter.ToInt32(new byte[4] { payload[7], payload[6], payload[5], payload[4] }, 0).ToString()) / 10000000;
+                Speed = float.Parse(BitConverter.ToInt16(new byte[2] { payload[9], payload[8] }, 0).ToString());// / 10;
+                Course = BitConverter.ToInt16(new byte[2] { payload[11], payload[10] }, 0) / 100;
+                Altitude = BitConverter.ToUInt16(new byte[2] { payload[13], payload[12] }, 0) - 1000;
                 SatelliteCount = Convert.ToInt32(payload[14]);
 
                 _rawPacket = data;
@@ -227,9 +227,9 @@ namespace CRSF{
         {
             if (CRSFPackage.CheckPacket(data)){
                 var payload = CRSFPackage.GetPayload(data);
-                Pitch = ConvertToAngle(BitConverter.ToInt16([payload[1], payload[0]], 0));
-                Row = ConvertToAngle(BitConverter.ToInt16([payload[3], payload[2]], 0));
-                Yaw = ConvertToAngle(BitConverter.ToInt16([payload[5], payload[4]], 0));
+                Pitch = ConvertToAngle(BitConverter.ToInt16(new byte[2] { payload[1], payload[0] }, 0));
+                Row = ConvertToAngle(BitConverter.ToInt16(new byte[2] { payload[3], payload[2] }, 0));
+                Yaw = ConvertToAngle(BitConverter.ToInt16(new byte[2] { payload[5], payload[4] }, 0));
 
                 _rawPacket = data;
             }
