@@ -3,12 +3,39 @@
 #include <WebServer.h>
 #include <ArduinoJson.h>
 #include <esp_wifi.h>
+#include <DistanceSensor.h>
 
 bool DEBUG = false; //Exibe informacoes no Serial
 
 //Configuracao do ESP
 #define RXD2 16
 #define TXD2 17
+//Sensores ultrassonicos
+#define US_FRONT_TRIG_PIN 13
+#define US_FRONT_ECHO_PIN 12
+#define US_REAR_TRIG_PIN 14
+#define US_REAR_ECHO_PIN 27
+#define US_LEFT_TRIG_PIN 26
+#define US_LEFT_ECHO_PIN 25
+#define US_RIGHT_TRIG_PIN 33
+#define US_RIGHT_ECHO_PIN 32
+
+DistanceSensor  US_Front(US_FRONT_TRIG_PIN, US_FRONT_ECHO_PIN);
+DistanceSensor US_Rear(US_REAR_TRIG_PIN, US_REAR_ECHO_PIN);
+DistanceSensor US_Left(US_LEFT_TRIG_PIN, US_LEFT_ECHO_PIN);
+DistanceSensor US_Right(US_RIGHT_TRIG_PIN, US_RIGHT_ECHO_PIN);
+TaskHandle_t TaskUltrassonic;
+
+struct UltrassonicData{
+   int range; //mm
+   int actualValue; //mm
+   bool collisionDetected;
+};
+
+UltrassonicData US_FrontData = {1000, 0, false};
+UltrassonicData US_RearData = {1000, 0, false};
+UltrassonicData US_LeftData = {1000, 0, false};
+UltrassonicData US_RightData = {1000, 0, false};
 
 // Replace with your network credentials
 //-------ACCESS POINT
@@ -61,16 +88,6 @@ void setup() {
 
   // -- START STATION MODE
   WiFi.mode(WIFI_MODE_STA);
-  Serial.println("WIFI STA MODE");
-  WiFi.begin(ssid, password);
-  while (WiFi.status() != WL_CONNECTED) 
-  {
-    delay(500);
-    Serial.println("Conectando ao WiFi..");
-  }
-  Serial.println("WiFi conectada.");
-  Serial.println("Endereço de IP: ");
-  Serial.println(WiFi.localIP());
 
   // Change ESP32 Mac Address
   esp_err_t err = esp_wifi_set_mac(WIFI_IF_STA, &MACAddress[0]);
@@ -83,12 +100,33 @@ void setup() {
     readMacAddress();
   }
 
+  Serial.println("WIFI STA MODE");
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) 
+  {
+    delay(500);
+    Serial.println("Conectando ao WiFi..");
+  }
+  Serial.println("WiFi conectada.");
+  Serial.println("Endereço de IP: ");
+  Serial.println(WiFi.localIP());
+
   //Start web server
   server.begin();
 
   //Inicializa os servers
   server.on("/", HTTP_GET, handleWebPage);              // Responde com uma página web
   server.on("/Controle", HTTP_POST, handlePostJSON_Controle);
+
+  //Inicializa a task to Ultrassonico
+  xTaskCreatePinnedToCore(
+             CheckColision,  /* Task function. */
+             "TaskUltrassonic",    /* name of task. */
+             10000,      /* Stack size of task */
+             NULL,       /* parameter of the task */
+             1,          /* priority of the task */
+             &TaskUltrassonic,     /* Task handle to keep track of created task */
+             1);         /* pin task to core 1 */
 }
 
 void loop(){
@@ -104,19 +142,21 @@ void loop(){
 }
 
 void CommFlyController(){
-  Serial.print("Pacote: ");
-  for(int i = 0; i < CRSF_FRAME_SIZE; i++){
-      Serial.print(pacoteCRSF[i], HEX);
+  if (DEBUG){
+    Serial.print("Pacote: ");
+    for(int i = 0; i < CRSF_FRAME_SIZE; i++){
+        Serial.print(pacoteCRSF[i], HEX);
+        Serial.print(",");
+    }
+    Serial.println(" ---");
+    
+    Serial.print("Canais: ");
+    for(int i = 0; i < 16; i++){
+      Serial.print(canais[i]);
       Serial.print(",");
+    }
+    Serial.println(".");
   }
-  Serial.println(" ---");
-  
-  Serial.print("Canais: ");
-  for(int i = 0; i < 16; i++){
-    Serial.print(canais[i]);
-    Serial.print(",");
-  }
-  Serial.println(".");
 
   Serial2.write(pacoteCRSF, CRSF_FRAME_SIZE);
 
@@ -147,7 +187,14 @@ void handleWebPage(){
                   font-size: 18px;
                   margin-bottom: 20px;
               }
-              .control {
+              .control1 {
+                  display: flex;
+                  flex-direction: row;
+                  align-items: center;
+                  margin-bottom: 20px;
+                  margin: 10px;
+              }
+              .control2 {
                   display: flex;
                   flex-direction: column;
                   align-items: center;
@@ -172,23 +219,41 @@ void handleWebPage(){
                   left: 50%;
                   transform: translate(-50%, -50%);
               }
+              #enable-btn{
+                position: relative;
+              }
           </style>
       </head>
       <body>
-          <div class="control">
-              <p>Pitch / Yaw</p>
-              <div class="joystick" id="joystick1">
-                  <div class="knob"></div>
-              </div>
+          <div class="control1">
+            <p>Yaw</p>
+            <div class="control2">
+            <p>Trotle</p>
+            <div class="joystick" id="joystick1">
+                <div class="knob"></div>
+            </div>
+            </div>
           </div>
           <button id="enable-btn">Enable</button>
-          <div class="control">
-              <p>Throttle / Roll</p>
-              <div class="joystick" id="joystick2">
-                  <div class="knob"></div>
+          <div class="control1">
+              <p>Pitch</p>
+              <div class="control2">
+                <p>Roll</p>
+                <div class="joystick" id="joystick2">
+                    <div class="knob"></div>
+                </div>
               </div>
           </div>
-
+          <div>
+            <p>
+                <span>Ganho:</span>
+                <input id="ganho-input" type="text" value="0.2">
+            </p>
+            <p>
+                <span>Ganho Trotle:</span>
+                <input id="ganho-trotle" type="text" value="1">
+            </p>
+          </div>
           <script>
               var ControleHabilitado = false;
               var ControleDrone = {
@@ -208,7 +273,6 @@ void handleWebPage(){
                   }else{
                       botao.style.backgroundColor = 'white';
                   }
-                  EnviarValorCanais();
               });
 
               // Função para manipular os joysticks
@@ -235,28 +299,27 @@ void handleWebPage(){
                       
                       scaleX = moveX / maxOffset;
                       scaleY = moveY / maxOffset * -1;
-
+                      inputGanho = document.getElementById('ganho-input');
+                      inputGanhoTrotle = document.getElementById('ganho-trotle');
                       if (joystickId === 'joystick1'){
-                          ControleDrone.PITCH = scaleY;
-                          ControleDrone.YAW = scaleX;
+                          ControleDrone.TROTLE = scaleY * inputGanhoTrotle.value;
+                          ControleDrone.YAW = scaleX * inputGanho.value;
                       }
 
                       if (joystickId === 'joystick2'){
-                          ControleDrone.TROTLE = scaleY;
-                          ControleDrone.ROW = scaleX;
+                          ControleDrone.ROW = scaleY * inputGanho.value;
+                          ControleDrone.PITCH = scaleX * inputGanho.value;
                       }
-
-                      EnviarValorCanais();
                   });
 
                   joystick.addEventListener('touchend', function() {
                       knob.style.left = '50%';
                       knob.style.top = '50%';
+
                       ControleDrone.PITCH = 0;
                       ControleDrone.YAW = 0;
                       ControleDrone.TROTLE = 0;
                       ControleDrone.ROW = 0;
-                      EnviarValorCanais();
                   });
               }
 
@@ -279,10 +342,65 @@ void handleWebPage(){
                       }
                   };
                   xhr.send(JSON.stringify(ControleDrone));
+
+                  if (ControleDrone.ENABLE){
+                    setTimeout(EnviarValorCanais, 100);
+                  }else{
+                    setTimeout(EnviarValorCanais, 1000);
+                  }
               }
+              
+              document.addEventListener('keyup', (event) => {
+                ControleDrone.PITCH = 0;
+                ControleDrone.YAW = 0;
+                //ControleDrone.TROTLE = 0;
+                ControleDrone.ROW = 0;
+              });
+
+              document.addEventListener('keydown', (event) => {
+                console.log('Tecla pressionada:', event.key);
+                
+                if(event.key === 'r'){
+                    ControleDrone.PITCH = 0;
+                    ControleDrone.YAW = 0;
+                    ControleDrone.TROTLE = 0;
+                    ControleDrone.ROW = 0;
+                }
+
+                if(event.key === 'w'){
+                    ControleDrone.TROTLE += 0.01;
+                }
+
+                if(event.key === 's'){
+                    ControleDrone.TROTLE -= 0.01;
+                }
+                
+
+                //Verifica os limites
+                if(ControleDrone.PITCH > 1){
+                    ControleDrone.PITCH = 1;
+                }else if(ControleDrone.PITCH < -1){
+                    ControleDrone.PITCH = 1;
+                }
+
+                if(ControleDrone.YAW > 1){
+                    ControleDrone.YAW = 1;
+                }else if(ControleDrone.YAW < -1){
+                    ControleDrone.YAW = 1;
+                }
+
+                if(ControleDrone.ROW > 1){
+                    ControleDrone.ROW = 1;
+                }else if(ControleDrone.ROW < -1){
+                    ControleDrone.ROW = 1;
+                }
+
+                //console.log(ControleDrone);
+              });
 
               initJoystick('joystick1');
               initJoystick('joystick2');
+              EnviarValorCanais();
           </script>
       </body>
       </html>
@@ -356,10 +474,10 @@ void CRSF(){
   }
 
   //Atualiza os valores dos canais
-  //canais[0] = ROW;
-  //canais[1] = PITCH;
+  canais[0] = ROW;
+  canais[1] = PITCH;
   canais[2] = TROTLE;
-  //canais[3] = YAW;
+  canais[3] = YAW;
   canais[4] = ENABLE;
 
   //Montage o pacote
@@ -468,5 +586,27 @@ void readMacAddress(){
                   baseMac[3], baseMac[4], baseMac[5]);
   } else {
     Serial.println("Failed to read MAC address");
+  }
+}
+
+void CheckColision(void * pvParameters){
+  Serial.print("Check collision running at ");
+  Serial.println(xPortGetCoreID());
+  for(;;){
+    //Front
+    US_FrontData.actualValue = US_Front.getCM() * 10;
+    US_FrontData.collisionDetected = US_FrontData.actualValue < US_FrontData.range;
+
+    //Rear
+    US_RearData.actualValue = US_Rear.getCM() * 10;
+    US_RearData.collisionDetected = US_RearData.actualValue < US_RearData.range;
+
+    //Left
+    US_LeftData.actualValue = US_Left.getCM() * 10;
+    US_LeftData.collisionDetected = US_LeftData.actualValue < US_LeftData.range;
+
+    //Right
+    US_RightData.actualValue = US_Right.getCM() * 10;
+    US_RightData.collisionDetected = US_RightData.actualValue < US_RightData.range;
   }
 }
