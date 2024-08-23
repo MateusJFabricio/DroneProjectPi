@@ -2,6 +2,7 @@
 #include <WiFi.h>
 #include <WebServer.h>
 #include <ArduinoJson.h>
+#include <esp_wifi.h>
 
 bool DEBUG = false; //Exibe informacoes no Serial
 
@@ -10,11 +11,21 @@ bool DEBUG = false; //Exibe informacoes no Serial
 #define TXD2 17
 
 // Replace with your network credentials
-const char* ssid     = "DRONE_SERVER";
-const char* password = "123456789";
-IPAddress local_IP(192, 168, 1, 177);   // Endereço IP do AP
-IPAddress gateway(192, 168, 1, 177);    // Gateway (geralmente o mesmo que o IP)
-IPAddress subnet(255, 255, 255, 0);   // Máscara de sub-rede
+//-------ACCESS POINT
+//const char* ssid     = "DRONE_SERVER";
+//const char* password = "123456789";
+//IPAddress local_IP(192, 168, 1, 177);   // Endereço IP do AP
+//IPAddress gateway(192, 168, 1, 177);    // Gateway (geralmente o mesmo que o IP)
+//IPAddress subnet(255, 255, 255, 0);   // Máscara de sub-rede
+
+//-------CONECTED TO THE NETWORK AS STATION MODE
+const char* ssid = "ALHN-7030";
+const char* password =  "cLA7pFG8CL";
+
+
+//MAC ADDRESS
+uint8_t MACAddress[] = {0x52, 0x4F, 0x42, 0x4F, 0x53, 0x01};
+
 WebServer server(80);
 
 //WebPage variables
@@ -41,21 +52,43 @@ void setup() {
   Serial2.begin(416666, SERIAL_8N1, RXD2, TXD2);
 
   //Inicializa o WIFI
-  if (DEBUG){
-    Serial.println("Setting AP (Access Point)…");
-  }
-  // Configura o IP do AP
-  if (!WiFi.softAPConfig(local_IP, gateway, subnet)) {
-    Serial.println("Falha ao configurar IP do AP");
-  }
-  WiFi.softAP(ssid, password);  
-  server.begin();
+  // -- START ACCESS POINT MODE
+  //Serial.println("WIFI ACCESS POINT MODE");
+  //if (!WiFi.softAPConfig(local_IP, gateway, subnet)) {
+  //  Serial.println("Falha ao configurar IP do AP");
+  //}
+  //WiFi.softAP(ssid, password);  
 
+  // -- START STATION MODE
+  WiFi.mode(WIFI_MODE_STA);
+  Serial.println("WIFI STA MODE");
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) 
+  {
+    delay(500);
+    Serial.println("Conectando ao WiFi..");
+  }
+  Serial.println("WiFi conectada.");
+  Serial.println("Endereço de IP: ");
+  Serial.println(WiFi.localIP());
+
+  // Change ESP32 Mac Address
+  esp_err_t err = esp_wifi_set_mac(WIFI_IF_STA, &MACAddress[0]);
+  if (err != ESP_OK) {
+    while(true){
+      Serial.println("Problema com o MAC ADDRESS");
+      delay(1000);
+    }
+  }else{
+    readMacAddress();
+  }
+
+  //Start web server
+  server.begin();
 
   //Inicializa os servers
   server.on("/", HTTP_GET, handleWebPage);              // Responde com uma página web
   server.on("/Controle", HTTP_POST, handlePostJSON_Controle);
-
 }
 
 void loop(){
@@ -426,3 +459,14 @@ byte calcularCRC8(byte data[], int tamanho) {
     return crc;  // Retorna o valor do CRC calculado
 }
 
+void readMacAddress(){
+  uint8_t baseMac[6];
+  esp_err_t ret = esp_wifi_get_mac(WIFI_IF_STA, baseMac);
+  if (ret == ESP_OK) {
+    Serial.printf("%02x:%02x:%02x:%02x:%02x:%02x\n",
+                  baseMac[0], baseMac[1], baseMac[2],
+                  baseMac[3], baseMac[4], baseMac[5]);
+  } else {
+    Serial.println("Failed to read MAC address");
+  }
+}
