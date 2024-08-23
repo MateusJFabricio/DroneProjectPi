@@ -57,6 +57,10 @@ namespace RDC.RDCProtocol
             {
                 throw new Exception("Data nok");
             }
+            for (var i = 0; i < 16; i++)
+            {
+                Channels[i] = BitConverter.ToUInt16(payload, i * 2);
+            }
         }
 
         public void SetChannel(int channel, ushort value)
