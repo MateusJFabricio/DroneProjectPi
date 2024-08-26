@@ -126,7 +126,7 @@ void setup() {
              NULL,       /* parameter of the task */
              1,          /* priority of the task */
              &TaskUltrassonic,     /* Task handle to keep track of created task */
-             1);         /* pin task to core 1 */
+             0);         /* pin task to core 1 */
 }
 
 void loop(){
@@ -247,14 +247,16 @@ void handleWebPage(){
           <div>
             <p>
                 <span>Ganho:</span>
-                <input id="ganho-input" type="text" value="0.2">
+                <input id="ganho-input" type="text" value="1">
             </p>
             <p>
                 <span>Ganho Trotle:</span>
                 <input id="ganho-trotle" type="text" value="1">
             </p>
+            <p id="joystick-label" style="font-size: 20px; color: black;">Joystick Desconectado</p>
           </div>
           <script>
+              var ControleDetectado = false;
               var ControleHabilitado = false;
               var ControleDrone = {
                   YAW: 0,
@@ -274,6 +276,7 @@ void handleWebPage(){
                       botao.style.backgroundColor = 'white';
                   }
               });
+              
 
               // Função para manipular os joysticks
               function initJoystick(joystickId) {
@@ -349,58 +352,103 @@ void handleWebPage(){
                     setTimeout(EnviarValorCanais, 1000);
                   }
               }
-              
-              document.addEventListener('keyup', (event) => {
+
+            window.addEventListener("gamepadconnected", (e) => {
+                console.log(
+                    "Gamepad connected at index %d: %s. %d buttons, %d axes.",
+                    e.gamepad.index,
+                    e.gamepad.id,
+                    e.gamepad.buttons.length,
+                    e.gamepad.axes.length,
+                );
+
+                const joystick_label = document.getElementById('joystick-label');
+                joystick_label.innerHTML = "Joystick Detectado";
+                joystick_label.style.backgroundColor = 'green';
+                ControleDetectado = true;
+                readJoystick();
+            });
+
+            window.addEventListener("gamepaddisconnected", (e) => {
+                ControleDetectado = false;
+                ControleHabilitado = false;
+
                 ControleDrone.PITCH = 0;
                 ControleDrone.YAW = 0;
-                //ControleDrone.TROTLE = 0;
+                ControleDrone.TROTLE = 0;
                 ControleDrone.ROW = 0;
-              });
-
-              document.addEventListener('keydown', (event) => {
-                console.log('Tecla pressionada:', event.key);
                 
-                if(event.key === 'r'){
-                    ControleDrone.PITCH = 0;
-                    ControleDrone.YAW = 0;
-                    ControleDrone.TROTLE = 0;
-                    ControleDrone.ROW = 0;
-                }
-
-                if(event.key === 'w'){
-                    ControleDrone.TROTLE += 0.01;
-                }
-
-                if(event.key === 's'){
-                    ControleDrone.TROTLE -= 0.01;
+                //Atualiza botao enable
+                const botao = document.getElementById('enable-btn');
+                if (ControleHabilitado){
+                    botao.style.backgroundColor = 'green';
+                }else{
+                    botao.style.backgroundColor = 'white';
                 }
                 
+                //Atualiza o knob 1
+                let joystick = document.getElementById('joystick1');
+                let knob = joystick.querySelector('.knob');
+                knob.style.left = '50%';
+                knob.style.top = '50%';
 
-                //Verifica os limites
-                if(ControleDrone.PITCH > 1){
-                    ControleDrone.PITCH = 1;
-                }else if(ControleDrone.PITCH < -1){
-                    ControleDrone.PITCH = 1;
+                //Atualiza o knob 2
+                joystick = document.getElementById('joystick2');
+                knob = joystick.querySelector('.knob');
+                knob.style.left = '50%';
+                knob.style.top = '50%';
+
+                const joystick_label = document.getElementById('joystick-label');
+                joystick_label.innerHTML = "Joystick Desconectado";
+                joystick_label.style.backgroundColor = 'white';
+            });
+
+            function readJoystick() {
+                if(navigator.getGamepads().length > 0){
+                    const gamepad = navigator.getGamepads()[0];
+                    if (gamepad) {
+                        if (gamepad.buttons[5].pressed) {
+                            ControleHabilitado = true;
+                            console.log("Habilitado");
+                        }
+                        if (gamepad.buttons[4].pressed) {
+                            ControleHabilitado = false;
+                        }
+                        
+                        //Atualiza botao enable
+                        const botao = document.getElementById('enable-btn');
+                        if (ControleHabilitado){
+                            botao.style.backgroundColor = 'green';
+                        }else{
+                            botao.style.backgroundColor = 'white';
+                        }
+
+                        //Atualiza o knob 1
+                        let joystick = document.getElementById('joystick1');
+                        let knob = joystick.querySelector('.knob');
+                        knob.style.left = ((gamepad.axes[0] + 1) / 2) * 100 + '%';
+                        knob.style.top = ((gamepad.axes[1] + 1) / 2) * 100 + '%';
+
+                        //Atualiza o knob 2
+                        joystick = document.getElementById('joystick2');
+                        knob = joystick.querySelector('.knob');
+                        knob.style.left = ((gamepad.axes[2] + 1) / 2) * 100 + '%';
+                        knob.style.top = ((gamepad.axes[3] + 1) / 2) * 100 + '%';
+
+                        // Acesse os eixos do joystick (e.g., eixo 0 e 1)
+                        ControleDrone.YAW  = gamepad.axes[0];
+                        ControleDrone.TROTLE  = gamepad.axes[1] * -1;
+                        ControleDrone.PITCH  = gamepad.axes[2];
+                        ControleDrone.ROW  = gamepad.axes[3];
+                    }
                 }
 
-                if(ControleDrone.YAW > 1){
-                    ControleDrone.YAW = 1;
-                }else if(ControleDrone.YAW < -1){
-                    ControleDrone.YAW = 1;
-                }
+                setTimeout(readJoystick, 10);
+            }
 
-                if(ControleDrone.ROW > 1){
-                    ControleDrone.ROW = 1;
-                }else if(ControleDrone.ROW < -1){
-                    ControleDrone.ROW = 1;
-                }
-
-                //console.log(ControleDrone);
-              });
-
-              initJoystick('joystick1');
-              initJoystick('joystick2');
-              EnviarValorCanais();
+            initJoystick('joystick1');
+            initJoystick('joystick2');
+            EnviarValorCanais();
           </script>
       </body>
       </html>
@@ -437,11 +485,9 @@ void handlePostJSON_Controle() {
     YAW = yaw * 1000 + 1000;
 
     float trotle = doc["TROTLE"];
-    if(trotle > 0){
-      TROTLE = trotle * 1000 + 172;
-    }else{
-      TROTLE = 172;
-    }
+    TROTLE = trotle * 1000 + 1000;
+    TROTLE = TROTLE > 2000 ? 2000 : TROTLE;
+    TROTLE = TROTLE < 172 ? 172 : TROTLE;
 
     bool enable = doc["ENABLE"];
     if (enable){
@@ -592,21 +638,48 @@ void readMacAddress(){
 void CheckColision(void * pvParameters){
   Serial.print("Check collision running at ");
   Serial.println(xPortGetCoreID());
-  for(;;){
+  while(1)
+  {
     //Front
     US_FrontData.actualValue = US_Front.getCM() * 10;
     US_FrontData.collisionDetected = US_FrontData.actualValue < US_FrontData.range;
+
+    if (DEBUG){
+      Serial.print("US Front: ");
+      Serial.print(US_FrontData.actualValue);
+      Serial.println(" mm");
+    }
 
     //Rear
     US_RearData.actualValue = US_Rear.getCM() * 10;
     US_RearData.collisionDetected = US_RearData.actualValue < US_RearData.range;
 
+    if (DEBUG){
+      Serial.print("US Rear: ");
+      Serial.print(US_RearData.actualValue);
+      Serial.println(" mm");
+    }
+
     //Left
     US_LeftData.actualValue = US_Left.getCM() * 10;
     US_LeftData.collisionDetected = US_LeftData.actualValue < US_LeftData.range;
 
+    if (DEBUG){
+      Serial.print("US Left: ");
+      Serial.print(US_LeftData.actualValue);
+      Serial.println(" mm");
+    }
+
     //Right
     US_RightData.actualValue = US_Right.getCM() * 10;
     US_RightData.collisionDetected = US_RightData.actualValue < US_RightData.range;
+
+    if (DEBUG){
+      Serial.print("US Right: ");
+      Serial.print(US_RightData.actualValue);
+      Serial.println(" mm");
+    }
+
+    vTaskDelay(1 / portTICK_PERIOD_MS);
   }
 }
