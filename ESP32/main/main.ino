@@ -4,6 +4,7 @@
 #include <ArduinoJson.h>
 #include <esp_wifi.h>
 #include <DistanceSensor.h>
+#include <WebSocketsServer.h>
 
 bool DEBUG = false; //Exibe informacoes no Serial
 
@@ -49,9 +50,11 @@ UltrassonicData US_RightData = {1000, 0, false};
 const char* ssid = "ALHN-7030";
 const char* password =  "cLA7pFG8CL";
 
-
 //MAC ADDRESS
 uint8_t MACAddress[] = {0x52, 0x4F, 0x42, 0x4F, 0x53, 0x01};
+
+// Inicializa WebSocket server na porta 81
+WebSocketsServer webSocket = WebSocketsServer(81);
 
 WebServer server(80);
 
@@ -116,7 +119,7 @@ void setup() {
 
   //Inicializa os servers
   server.on("/", HTTP_GET, handleWebPage);              // Responde com uma página web
-  server.on("/Controle", HTTP_POST, handlePostJSON_Controle);
+  //server.on("/Controle", HTTP_POST, handlePostJSON_Controle);
 
   //Inicializa a task to Ultrassonico
   xTaskCreatePinnedToCore(
@@ -127,10 +130,16 @@ void setup() {
              1,          /* priority of the task */
              &TaskUltrassonic,     /* Task handle to keep track of created task */
              0);         /* pin task to core 1 */
+
+  // Inicia o WebSocket server
+  webSocket.begin();
+  webSocket.onEvent(webSocketEvent);
 }
 
 void loop(){
-  
+  // Mantém o WebSocket ativo
+  webSocket.loop();
+
   //Processa a Web Page
   server.handleClient();
 
@@ -139,6 +148,60 @@ void loop(){
 
   //Comunicacao com o FlyController
   CommFlyController();
+}
+
+// Função que lida com eventos do WebSocket
+void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length) {
+  if(type == WStype_TEXT) {
+    // Recebe a mensagem do cliente
+    String message = String((char*) payload);
+    
+    // Cria um documento JSON
+    StaticJsonDocument<200> doc;
+
+    // Tenta deserializar o JSON
+    DeserializationError error = deserializeJson(doc, message);
+
+    if (error) {
+      Serial.print(F("Falha ao analisar JSON: "));
+      Serial.println(error.f_str());
+      server.send(400, "application/json", "{\"status\":\"failed\"}");
+      return;
+    }
+
+    // Acessa os valores do JSON
+    float row = doc["ROW"];
+    ROW = row * 1000 + 1000;
+
+    float pitch = doc["PITCH"];
+    PITCH = pitch * 1000 + 1000;
+
+    float yaw = doc["YAW"];
+    YAW = yaw * 1000 + 1000;
+
+    float trotle = doc["TROTLE"];
+    TROTLE = trotle * 1000 + 1000;
+    TROTLE = TROTLE > 2000 ? 2000 : TROTLE;
+    TROTLE = TROTLE < 172 ? 172 : TROTLE;
+
+    bool enable = doc["ENABLE"];
+    if (enable){
+      ENABLE = 992;
+    }else{
+      ENABLE = 1400;
+    }
+
+    Serial.print("ROW: ");
+    Serial.print(ROW);
+    Serial.print(", PITCH: ");
+    Serial.print(PITCH);
+    Serial.print(", YAW: ");
+    Serial.print(YAW);
+    Serial.print(", TROTLE: ");
+    Serial.print(TROTLE);
+    Serial.print(", ENABLE: ");
+    Serial.println(ENABLE);
+  }
 }
 
 void CommFlyController(){
@@ -226,9 +289,9 @@ void handleWebPage(){
       </head>
       <body>
           <div class="control1">
-            <p>Yaw</p>
+            <p id="yaw-label">Yaw</p>
             <div class="control2">
-            <p>Trotle</p>
+            <p id="trotle-label">Trotle</p>
             <div class="joystick" id="joystick1">
                 <div class="knob"></div>
             </div>
@@ -236,9 +299,9 @@ void handleWebPage(){
           </div>
           <button id="enable-btn">Enable</button>
           <div class="control1">
-              <p>Pitch</p>
+              <p id="pitch-label">Pitch</p>
               <div class="control2">
-                <p>Roll</p>
+                <p id="roll-label">Roll</p>
                 <div class="joystick" id="joystick2">
                     <div class="knob"></div>
                 </div>
@@ -254,8 +317,19 @@ void handleWebPage(){
                 <input id="ganho-trotle" type="text" value="1">
             </p>
             <p id="joystick-label" style="font-size: 20px; color: black;">Joystick Desconectado</p>
+            <p>
+                <span>IP DRONE: </span>
+                <input id="ip-drone-input" type="text" value="192.168.1.43">
+                <button id="button-conectar">Conectar</button>
+            </p>
           </div>
           <script>
+              // Conecta ao WebSocket server
+              const ip_drone_input = document.getElementById('ip-drone-input');
+              console.log('ws://' + ip_drone_input.value +':81');
+              var socket = new WebSocket('ws://' + ip_drone_input.value +':81');
+
+
               var ControleDetectado = false;
               var ControleHabilitado = false;
               var ControleDrone = {
@@ -265,6 +339,25 @@ void handleWebPage(){
                   TROTLE: 0,
                   ENABLE: false
               };
+
+              socket.onopen = function(event) {
+                const botao = document.getElementById('button-conectar');
+                botao.style.backgroundColor = 'green';
+                botao.innerHTML = "Conectado";
+                console.log("Conectado")
+               };
+
+              socket.onclose = function(event){
+                const botao = document.getElementById('button-conectar');
+                botao.style.backgroundColor = 'white';
+                botao.innerHTML = "Conectar";
+               }
+
+               // Função para habilitar controle
+              document.getElementById('button-conectar').addEventListener('click', function() {
+                  // Conecta ao WebSocket server
+                  socket = new WebSocket('ws://' + ip_drone_input.value +':81');
+              });
 
               // Função para habilitar controle
               document.getElementById('enable-btn').addEventListener('click', function() {
@@ -327,30 +420,37 @@ void handleWebPage(){
               }
 
               function EnviarValorCanais(){
-                  var xhr = new XMLHttpRequest();
+                ControleDrone.ENABLE = ControleHabilitado; //Atualiza o valor do Enable
+                try {
+                    if(true){
+                    socket.send(JSON.stringify(ControleDrone));
+                  }else{
+                    var xhr = new XMLHttpRequest();
 
-                  ControleDrone.ENABLE = ControleHabilitado; //Atualiza o valor do Enable
+                    xhr.open('POST', '/Controle', true);
+                    xhr.setRequestHeader("Content-Type", "application/json");
+                    xhr.onreadystatechange = function () {
+                        if (xhr.readyState === XMLHttpRequest.DONE) {
+                            if (xhr.status >= 200 && xhr.status < 300) {
+                                // A requisição foi bem-sucedida
+                                console.log("Success:", xhr.responseText);
+                            } else {
+                                // Houve algum erro
+                                console.error("Error:", xhr.statusText);
+                            }
+                        }
+                    };
+                    xhr.send(JSON.stringify(ControleDrone));
 
-                  xhr.open('POST', '/Controle', true);
-                  xhr.setRequestHeader("Content-Type", "application/json");
-                  xhr.onreadystatechange = function () {
-                      if (xhr.readyState === XMLHttpRequest.DONE) {
-                          if (xhr.status >= 200 && xhr.status < 300) {
-                              // A requisição foi bem-sucedida
-                              console.log("Success:", xhr.responseText);
-                          } else {
-                              // Houve algum erro
-                              console.error("Error:", xhr.statusText);
-                          }
-                      }
-                  };
-                  xhr.send(JSON.stringify(ControleDrone));
-
+                  }
+                } finally{
+                    console.log("Enviado comando")
                   if (ControleDrone.ENABLE){
-                    setTimeout(EnviarValorCanais, 100);
+                    setTimeout(EnviarValorCanais, 10);
                   }else{
                     setTimeout(EnviarValorCanais, 1000);
-                  }
+                  }   
+                }
               }
 
             window.addEventListener("gamepadconnected", (e) => {
@@ -436,19 +536,32 @@ void handleWebPage(){
                         knob.style.top = ((gamepad.axes[3] + 1) / 2) * 100 + '%';
 
                         // Acesse os eixos do joystick (e.g., eixo 0 e 1)
-                        ControleDrone.YAW  = gamepad.axes[0];
-                        ControleDrone.TROTLE  = gamepad.axes[1] * -1;
-                        ControleDrone.PITCH  = gamepad.axes[2];
-                        ControleDrone.ROW  = gamepad.axes[3];
+                        inputGanho = document.getElementById('ganho-input');
+                        inputGanhoTrotle = document.getElementById('ganho-trotle');
+                        ControleDrone.YAW  = gamepad.axes[0] * inputGanho.value;
+                        ControleDrone.TROTLE  = gamepad.axes[1] * -1 * inputGanhoTrotle.value;
+                        ControleDrone.PITCH  = gamepad.axes[2] * inputGanho.value;
+                        ControleDrone.ROW  = gamepad.axes[3] * -1 * inputGanho.value;
+
+                        const yaw_label = document.getElementById('yaw-label');
+                        yaw_label.innerHTML = "Yaw/" + ControleDrone.YAW.toFixed(2);
+                        const trotle_label = document.getElementById('trotle-label');
+                        trotle_label.innerHTML = "Trotle/" + ControleDrone.TROTLE.toFixed(2);
+                        const roll_label = document.getElementById('roll-label');
+                        roll_label.innerHTML = "Roll/" + ControleDrone.ROW.toFixed(2);
+                        const pitch_label = document.getElementById('pitch-label');
+                        pitch_label.innerHTML = "Pitch/" + ControleDrone.PITCH.toFixed(2);
+
                     }
                 }
 
                 setTimeout(readJoystick, 10);
             }
 
-            initJoystick('joystick1');
-            initJoystick('joystick2');
-            EnviarValorCanais();
+
+              initJoystick('joystick1');
+              initJoystick('joystick2');
+              EnviarValorCanais();
           </script>
       </body>
       </html>
