@@ -3,41 +3,46 @@
 #include <WebServer.h>
 #include <ArduinoJson.h>
 #include <esp_wifi.h>
-#include <DistanceSensor.h>
 #include <WebSocketsServer.h>
+#include <SoftwareSerial.h>
+#include <Ewma.h>
+
 
 bool DEBUG = false; //Exibe informacoes no Serial
 
 //Configuracao do ESP
-#define RXD2 16
-#define TXD2 17
-//Sensores ultrassonicos
-#define US_FRONT_TRIG_PIN 13
-#define US_FRONT_ECHO_PIN 12
-#define US_REAR_TRIG_PIN 14
-#define US_REAR_ECHO_PIN 27
-#define US_LEFT_TRIG_PIN 26
-#define US_LEFT_ECHO_PIN 25
-#define US_RIGHT_TRIG_PIN 33
-#define US_RIGHT_ECHO_PIN 32
+#define RXD2 16 //FlyController RX
+#define TXD2 17 //FlyController TX
+#define RXD3 5 //Antena RF RX
+#define TXD3 18 //Antena RF TX
 
-DistanceSensor  US_Front(US_FRONT_TRIG_PIN, US_FRONT_ECHO_PIN);
-DistanceSensor US_Rear(US_REAR_TRIG_PIN, US_REAR_ECHO_PIN);
-DistanceSensor US_Left(US_LEFT_TRIG_PIN, US_LEFT_ECHO_PIN);
-DistanceSensor US_Right(US_RIGHT_TRIG_PIN, US_RIGHT_ECHO_PIN);
-TaskHandle_t TaskUltrassonic;
+EspSoftwareSerial::UART SerialAntenaRF;
+
+//Sensores ultrassonicos
+//TaskHandle_t TaskUltrassonic;
 
 struct UltrassonicData{
    int range; //mm
    int actualValue; //mm
+   int average; //Math to make average value
    bool collisionDetected;
+   bool error;
+   int TriggerPin;
+   int EchoPin;
+   float Incremento;
 };
 
-UltrassonicData US_FrontData = {1000, 0, false};
-UltrassonicData US_RearData = {1000, 0, false};
-UltrassonicData US_LeftData = {1000, 0, false};
-UltrassonicData US_RightData = {1000, 0, false};
+UltrassonicData US_FrontData = {1000, 0, 0, false, false, 13, 12, 0.1};
+UltrassonicData US_RearData = {1000, 0, 0, false, false, 14, 27, 0.1};
+UltrassonicData US_LeftData = {1000, 0, 0, false, false, 26, 25, 0.1};
+UltrassonicData US_RightData = {1000, 0, 0, false, false, 33, 32, 0.1};
+UltrassonicData US_DownData = {1000, 0, 0, false, false, 22, 23, 0.1};
 
+Ewma US_Front_Filter(0.005);
+Ewma US_Read_Filter(0.01);
+Ewma US_Left_Filter(0.01);
+Ewma US_Right_Filter(0.01);
+Ewma US_Down_Filter(0.01);
 // Replace with your network credentials
 //-------ACCESS POINT
 //const char* ssid     = "DRONE_SERVER";
@@ -80,7 +85,15 @@ void setup() {
   //Inicializa as seriais
   Serial.begin(115200);
   Serial2.begin(416666, SERIAL_8N1, RXD2, TXD2);
-
+  SerialAntenaRF.begin(9600, SWSERIAL_8N1, RXD3, TXD3, false); //Comunicacao RadioFrequencia
+  if (!SerialAntenaRF) { // If the object did not initialize, then its configuration is invalid
+  Serial.println("Invalid EspSoftwareSerial pin configuration, check config"); 
+    while (1) { // Don't continue with invalid configuration
+      delay (1000);
+    }
+  }else{
+    Serial.println("Serial Antena OK"); 
+  }
   //Inicializa o WIFI
   // -- START ACCESS POINT MODE
   //Serial.println("WIFI ACCESS POINT MODE");
@@ -122,14 +135,19 @@ void setup() {
   //server.on("/Controle", HTTP_POST, handlePostJSON_Controle);
 
   //Inicializa a task to Ultrassonico
-  xTaskCreatePinnedToCore(
-             CheckColision,  /* Task function. */
-             "TaskUltrassonic",    /* name of task. */
-             10000,      /* Stack size of task */
-             NULL,       /* parameter of the task */
-             1,          /* priority of the task */
-             &TaskUltrassonic,     /* Task handle to keep track of created task */
-             0);         /* pin task to core 1 */
+  //xTaskCreatePinnedToCore(
+  //           CheckColision,  /* Task function. */
+  //           "TaskUltrassonic",    /* name of task. */
+  //           10000,      /* Stack size of task */
+  //           NULL,       /* parameter of the task */
+  //           1,          /* priority of the task */
+  //           &TaskUltrassonic,     /* Task handle to keep track of created task */
+  //           1);         /* pin task to core 1 */
+  DefineUltrassonic(US_RearData);
+  DefineUltrassonic(US_FrontData);
+  DefineUltrassonic(US_LeftData);
+  DefineUltrassonic(US_RightData);
+  DefineUltrassonic(US_DownData);
 
   // Inicia o WebSocket server
   webSocket.begin();
@@ -143,13 +161,53 @@ void loop(){
   //Processa a Web Page
   server.handleClient();
 
+  //Auto Pilot
+  AutoPilot(true);
+
   //Processa o pacote CRSF
   CRSF();
 
   //Comunicacao com o FlyController
   CommFlyController();
+
+  //Read Anthena Serial
+  AnthenaSerial();
+
+  //Check collision
+  CheckColision();
 }
 
+void AutoPilot(bool enable){
+  if(enable){
+    if (canais[4] == 992){
+      if(US_DownData.collisionDetected){
+        if (TROTLE < 1600){
+          US_DownData.Incremento += 0.01;
+          TROTLE += US_DownData.Incremento;
+        }
+      }else{
+        if(TROTLE > 172){
+          US_DownData.Incremento += 0.01;
+          TROTLE -= US_DownData.Incremento;
+        }
+      }
+      
+      if(US_DownData.Incremento >= 1){
+        US_DownData.Incremento = 0.01;
+      }
+    }
+  }
+}
+
+void AnthenaSerial(){
+  if (SerialAntenaRF.available()){
+    char receivedChar = SerialAntenaRF.read();
+        
+    // Opcional: imprime o dado recebido no Serial Monitor
+    Serial.print("Recebido Antena: ");
+    Serial.println(receivedChar);
+  }
+}
 // Função que lida com eventos do WebSocket
 void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length) {
   if(type == WStype_TEXT) {
@@ -173,15 +231,28 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
     float row = doc["ROW"];
     ROW = row * 1000 + 1000;
 
+    ROW = ROW > 1811 ? 1811 : ROW;
+    ROW = ROW < 172 ? 172 : ROW;
+
     float pitch = doc["PITCH"];
     PITCH = pitch * 1000 + 1000;
+
+    PITCH = PITCH > 1811 ? 1811 : PITCH;
+    PITCH = PITCH < 172 ? 172 : PITCH;
 
     float yaw = doc["YAW"];
     YAW = yaw * 1000 + 1000;
 
+    YAW = YAW > 1811 ? 1811 : YAW;
+    YAW = YAW < 172 ? 172 : YAW;
+
     float trotle = doc["TROTLE"];
-    TROTLE = trotle * 1000 + 1000;
-    TROTLE = TROTLE > 2000 ? 2000 : TROTLE;
+    //TROTLE = trotle * 1000 + 1000;
+    if (trotle > 0.1 || trotle < -0.1){
+      TROTLE += trotle;
+    }
+    
+    TROTLE = TROTLE > 1811 ? 1811 : TROTLE;
     TROTLE = TROTLE < 172 ? 172 : TROTLE;
 
     bool enable = doc["ENABLE"];
@@ -448,7 +519,7 @@ void handleWebPage(){
                   if (ControleDrone.ENABLE){
                     setTimeout(EnviarValorCanais, 10);
                   }else{
-                    setTimeout(EnviarValorCanais, 1000);
+                    setTimeout(EnviarValorCanais, 10);
                   }   
                 }
               }
@@ -748,51 +819,38 @@ void readMacAddress(){
   }
 }
 
-void CheckColision(void * pvParameters){
-  Serial.print("Check collision running at ");
-  Serial.println(xPortGetCoreID());
-  while(1)
-  {
-    //Front
-    US_FrontData.actualValue = US_Front.getCM() * 10;
-    US_FrontData.collisionDetected = US_FrontData.actualValue < US_FrontData.range;
+void DefineUltrassonic(UltrassonicData sensor){
+  pinMode(sensor.TriggerPin, OUTPUT); // Sets the trigPin as an Output
+  pinMode(sensor.EchoPin, INPUT); // Sets the echoPin as an Input
+}
 
-    if (DEBUG){
-      Serial.print("US Front: ");
-      Serial.print(US_FrontData.actualValue);
-      Serial.println(" mm");
-    }
+float ReadUltrassonic(UltrassonicData sensor, Ewma analogFilter, bool printResult){
+  digitalWrite(sensor.TriggerPin, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(sensor.TriggerPin, LOW);
 
-    //Rear
-    US_RearData.actualValue = US_Rear.getCM() * 10;
-    US_RearData.collisionDetected = US_RearData.actualValue < US_RearData.range;
+  long duration = pulseIn(sensor.EchoPin, HIGH);
+  //long duration = pulseIn(sensor.EchoPin, HIGH, 12000); //200 = duration * 0.034/2 -->> ~12000
+  float distance = duration * 0.034/2;
+  distance *= 10;
+  
+  distance = analogFilter.filter(distance);
 
-    if (DEBUG){
-      Serial.print("US Rear: ");
-      Serial.print(US_RearData.actualValue);
-      Serial.println(" mm");
-    }
-
-    //Left
-    US_LeftData.actualValue = US_Left.getCM() * 10;
-    US_LeftData.collisionDetected = US_LeftData.actualValue < US_LeftData.range;
-
-    if (DEBUG){
-      Serial.print("US Left: ");
-      Serial.print(US_LeftData.actualValue);
-      Serial.println(" mm");
-    }
-
-    //Right
-    US_RightData.actualValue = US_Right.getCM() * 10;
-    US_RightData.collisionDetected = US_RightData.actualValue < US_RightData.range;
-
-    if (DEBUG){
-      Serial.print("US Right: ");
-      Serial.print(US_RightData.actualValue);
-      Serial.println(" mm");
-    }
-
-    vTaskDelay(1 / portTICK_PERIOD_MS);
+  if(printResult){
+    Serial.println(distance);
   }
+
+  return distance;
+}
+
+void CheckColision(){
+  //Front sensor
+  //US_FrontData.actualValue = (int) ReadUltrassonic(US_FrontData,US_Front_Filter, false);
+  //US_FrontData.collisionDetected = US_FrontData.actualValue < US_FrontData.range;
+  //US_FrontData.error = US_FrontData.actualValue <= 0 || US_FrontData.actualValue > 3000;
+
+  //Down sensor
+  US_DownData.actualValue = (int) ReadUltrassonic(US_DownData, US_Down_Filter, true);
+  US_DownData.collisionDetected = US_DownData.actualValue < US_DownData.range;
+  US_DownData.error = US_DownData.actualValue <= 0 || US_DownData.actualValue > 3000;
 }
