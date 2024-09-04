@@ -162,7 +162,7 @@ void loop(){
   server.handleClient();
 
   //Auto Pilot
-  AutoPilot(true);
+  AutoPilot(false);
 
   //Processa o pacote CRSF
   CRSF();
@@ -260,6 +260,10 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
       ENABLE = 992;
     }else{
       ENABLE = 1400;
+    }
+
+    if (!enable){
+      TROTLE -= 5;
     }
 
     Serial.print("ROW: ");
