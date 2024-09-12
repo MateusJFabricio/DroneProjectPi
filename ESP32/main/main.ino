@@ -14,6 +14,10 @@
 
 #include <Wire.h>
 #include <ESP32Servo.h> // Change to the standard Servo library for ESP32
+#include <DShotRMT.h>
+
+uint16_t throttle = 0;
+uint16_t target = 0;
 
 WebSocketsServer webSocket = WebSocketsServer(81);
 WebServer server(80);
@@ -44,6 +48,8 @@ const int mot1_pin = 13;
 const int mot2_pin = 12;
 const int mot3_pin = 14;
 const int mot4_pin = 27;
+
+//DShotRMT esc1(mot1_pin, RMT_CHANNEL_0);
 
 volatile int ReceiverValue[6]; // Increase the array size to 6 for Channel 1 to Channel 6
 
@@ -186,10 +192,24 @@ void setup(void) {
       4,  /* Priority of the task */
       NULL,  /* Task handle. */
       0);
+
+
+  //-------------------------------------
+  //esc1.begin(DSHOT1200);
 }
 
 void loop(void) {
-  FlyController();
+  //FlyController();
+
+  //esc1.sendThrottleValue(target);
+  mot3.write(map(target, 48, 2047, 0, 180));
+  
+  Serial.print(",Target: ");
+  Serial.println(target);
+  //Serial.print(",Trottle: ");
+  //Serial.println(throttle);
+  
+  //delay(1);
 }
 
 void TaskWebServer( void * parameter) {
@@ -1042,9 +1062,16 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
 
     if (doc.containsKey("TROTLE")){
       float trotle = doc["TROTLE"];
+      target = map(trunc(trotle * 1000), -1000, 1000, 48, 2047);
+      //Serial.print("Convertido(float): ");
+      //Serial.println(target);
+      //if(trotle >= 0){
+      //  target = (uint16_t) map(trotle * 1000, 0, 1000, 48, 2047); 
+      //}
+
       TROTLE = trotle * 1000 + 1000;
-      Serial.print("TROTLE:");
-      Serial.println(TROTLE);
+      //Serial.print("TROTLE:");
+      //Serial.println(TROTLE);
       //if (trotle > 0.1 || trotle < -0.1){
       //  TROTLE += trotle;
       //}

@@ -1,0 +1,40 @@
+#menu{
+    position: relative;
+    display: flex;
+    gap: 2px;
+    flex-direction: column;
+    width: 232px;
+    height: 100%;
+    left: -10px;
+    margin: 0px;
+    padding: 10px;
+    background-color: #4A5670;
+}
+
+.menu-item{
+    padding-left: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: left;
+    height: 50px;
+    font-size: 20px;
+    color: white;
+    border-radius: 10px;
+    border-style: solid;
+}
+
+.menu-subitem{
+    padding-left: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: left;
+    height: 50px;
+    font-size: 16px;
+    color: rgb(185, 185, 185);
+    border-radius: 10px;
+    
+}
+
+.menu-item-selected{
+    background-color: #b1ae72d8;
+}

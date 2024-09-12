@@ -1,0 +1,15 @@
+.container{
+    height: 100vh;
+    min-width: 1200px;
+    display: block;
+}
+
+.pages{
+    display: flex;
+    flex-direction: row;
+    position: absolute;
+    top: 68px;
+    bottom: 100px;
+    width: 100%;
+    min-width: 1200px;
+}

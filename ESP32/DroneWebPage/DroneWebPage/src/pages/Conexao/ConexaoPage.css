@@ -1,0 +1,35 @@
+.conexaopage-container{
+    width: 100%;
+}
+.title{
+    font-size: 25px;
+    display: flex;
+    height: 40px;
+    width: 90%;
+    align-items: center;
+    justify-content: center;
+}
+
+.conexao-form-container{
+    display: flex;
+    flex-direction: row;
+    gap: 10px;
+    padding: 10px;
+}
+.conexao-form-container input{
+    width: 100px;
+}
+.conexao-joystick-container{
+    display: flex;
+    flex-direction: row;
+    gap: 5px;
+}
+.conexao-status-joystick{
+    width: 100px;
+    background-color: rgb(128, 128, 128);
+}
+
+.conexao-status-joystick-conectado{
+    width: 100px;
+    background-color: green;
+}
