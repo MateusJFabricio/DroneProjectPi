@@ -1,0 +1,25 @@
+.joystickbar-container{
+    display: flex;
+    gap: 10px;
+    height: 20px;
+    width: 100%;
+}
+
+.joystickbar-bar{
+    display: flex;
+    background-color: rgb(156, 156, 156);
+    width: 90%;
+    border-radius: 3px;
+    border-style: solid;
+    border-width: 1px;
+}
+
+#joystickbar-bar-span{
+    position: absolute;
+    left: 60%;
+    color: rgb(255, 255, 255);
+}
+
+#joystickbar-container-title{
+    width: 7%;
+}

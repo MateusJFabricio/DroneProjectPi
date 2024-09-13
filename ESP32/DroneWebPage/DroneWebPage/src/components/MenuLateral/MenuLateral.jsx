@@ -28,8 +28,8 @@ const MenuLateral = () => {
 
   return (
     <div id='menu'>
-      <div className='menu-item' onClick={handleFlyClick}>Voar</div>
       <div className='menu-item' onClick={handleConexaoClick}>Conexão</div>
+      <div className='menu-item' onClick={handleFlyClick}>Navegação</div>
       <div className='menu-item' onClick={handleGeralClick}>Configurações</div>
       <div className='menu-subitem' onClick={handleGeralClick}>Geral</div>
       <div className='menu-subitem' onClick={handlePIDClick}>PID</div>

@@ -1,0 +1,21 @@
+.flypage-container{
+    height: 80%;
+    width: 80%;
+}
+
+.flypage-map-container{
+    width: 600px;
+    height: 600px;
+}
+
+#map-title{
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+#map-map{
+    background-color: rgba(30, 43, 42, 0.377);
+    width: 100%;
+    height: 92%;
+}

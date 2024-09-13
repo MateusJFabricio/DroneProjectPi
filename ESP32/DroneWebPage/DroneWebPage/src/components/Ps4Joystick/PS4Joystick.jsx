@@ -1,16 +1,17 @@
 import React from 'react'
-import { useState } from 'react';
-import { useGamepads } from 'react-gamepads';
+import { useState, useEffect } from 'react';
 import './PS4Joystick.css'
-const PS4Joystick = () => {
 
-    const [gamepads, setGamepads] = useState({});
-    useGamepads(gamepads => setGamepads(gamepads));
+const PS4Joystick = ({joystick}) => {
+
+    useEffect(()=>{
+        //console.log(joystick);
+    }, [joystick])
 
     const getAxis = (axis1, axis2)=>{
         try {
-            let value1 = gamepads[0].axes[axis1];
-            let value2 = gamepads[0].axes[axis2];
+            let value1 = joystick.axes[axis1];
+            let value2 = joystick.axes[axis2];
             if(value1 < 0)
                 value1 *= -1;
             
@@ -18,10 +19,8 @@ const PS4Joystick = () => {
                 value2 *= -1;
 
             let valor = Math.max(value2, value1);
-            console.log(valor);
             return "rgba(0,0,0,"+ valor + ")";
         } catch (error) {
-            console.log(error);
             return "rgba(0,0,0,0)";
         }
         
@@ -29,7 +28,7 @@ const PS4Joystick = () => {
 
     const setStickPos = (initialPos, axis)=>{
         try {
-            let value = gamepads[0].axes[axis];
+            let value = joystick.axes[axis];
             value = initialPos + (value * 25);
             return value;
         } catch (error) {
@@ -40,7 +39,7 @@ const PS4Joystick = () => {
 
     const getButtonPressed = (axis)=>{
         try {
-            return gamepads[0].buttons[axis].pressed ? "rgba(0,0,0,1)" : "rgba(0,0,0,0)";
+            return joystick.buttons[axis].pressed ? "rgba(0,0,0,1)" : "rgba(0,0,0,0)";
         } catch (error) {
             return "rgba(0,0,0,0)";
         }
@@ -50,12 +49,12 @@ const PS4Joystick = () => {
     <div className='ps4-container'>
         <svg width="350" viewBox="0 0 441 383" fill="none" xmlns="http://www.w3.org/2000/svg">
             <g id="XBox">
-                <path id="LOutline" d="M220.5 294.5C220.5 294.5 195 294.5 150 294.5C105 294.5 81.5 378.5 49.5 378.5C17.5 378.5 4 363.9 4 317.5C4 271.1 43.5 165.5 55 137.5C66.5 109.5 95.5 92.0001 128 92.0001C154 92.0001 200.5 92.0001 220.5 92.0001" stroke="hsl(210,50%,85%)" stroke-width="3" stroke-opacity="1"></path>
+                <path id="LOutline" d="M220.5 294.5C220.5 294.5 195 294.5 150 294.5C105 294.5 81.5 378.5 49.5 378.5C17.5 378.5 4 363.9 4 317.5C4 271.1 43.5 165.5 55 137.5C66.5 109.5 95.5 92.0001 128 92.0001C154 92.0001 200.5 92.0001 220.5 92.0001" stroke="hsl(210,50%,85%)" stroke-width="3" strokeOpacity="1"></path>
                 <path id="ROutline" d="M220 294.5C220 294.5 245.5 294.5 290.5 294.5C335.5 294.5 359 378.5 391 378.5C423 378.5 436.5 363.9 436.5 317.5C436.5 271.1 397 165.5 385.5 137.5C374 109.5 345 92.0001 312.5 92.0001C286.5 92.0001 240 92.0001 220 92.0001" stroke="hsl(210,50%,85%)" stroke-width="3" stroke-opacity="1"></path>
                 <circle id="LStickOutline" cx="113" cy="160" r="37.5" stroke="hsl(210,50%,85%)" stroke-opacity="1" stroke-width="3"></circle>
                 <circle id="LeftStick" cx={setStickPos(113.04705953598022, 0)} cy={setStickPos(160.04705953598022, 1)} r="28" fill={getAxis(0, 1)} stroke="rgba(0,0,0,1)" stroke-width="3"></circle>
                 <circle id="RStickOutline" cx="278" cy="238" r="37.5" stroke="hsl(210,50%,85%)" stroke-opacity="1" stroke-width="3"></circle>
-                <circle id="RightStick" cx="278.0470595359802" cy={setStickPos(238.04705953598022, 3)} r="28" fill={getAxis(2, 3)} stroke="rgba(0,0,0,1)" stroke-width="3"></circle>
+                <circle id="RightStick" cx={setStickPos(278.0470595359802, 2)} cy={setStickPos(238.04705953598022, 3)} r="28" fill={getAxis(2, 3)} stroke="rgba(0,0,0,1)" stroke-width="3"></circle>
                 <circle id="DOutline" cx="166" cy="238" r="37.5" stroke="hsl(210,50%,85%)" stroke-opacity="1" stroke-width="3"></circle>
                 <g id="DUp">
                     <mask id="path-8-inside-1" fill="white">

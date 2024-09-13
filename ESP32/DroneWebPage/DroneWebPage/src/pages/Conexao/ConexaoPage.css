@@ -33,3 +33,10 @@
     width: 100px;
     background-color: green;
 }
+
+.glp-viewer{
+    width: 600px;
+    height: 600px;
+    border-style: solid;
+    border-color: rgb(116, 116, 116);
+}

@@ -5,23 +5,19 @@
     display: flex;
     gap: 10px;
     height: 66px;
-    position: fixed;
-    top: 0px;
     width: 100%;
-    right: 0px;
-    left: 0px;
     min-width: 1200px;
   }
 
   .logo {
+    position: relative;
     display: flex;
     flex-direction: row;
     align-items: center;
-    background-color: #000000;
+    background: linear-gradient(to right, black, black , #4A5670);;
     gap: 10px;
     height: 100%;
-    width: 250px;
-    position: relative;
+    width: 20%;
     font-size: x-large;
   }
 
@@ -33,15 +29,27 @@
   .nav-status{
     display: flex;
     flex-direction: row-reverse;
+    padding: 5px;
+    width: 80%;
+    height: 80%;
+    gap: 10px;
   }
 
   .nav-status-conexao{
     position: relative;
+    display: flex;
+    flex-direction: column;
     justify-content: center;
     padding: 5px;
-    height: 50px;
-    background-color: green;
-    font-size: 10px;
+    /*background-color: green;*/
+    font-size: 9px;
     border-radius: 2px;
-    
+  }
+
+  .conectado{
+    background-color: green;
+  }
+
+  .desconectado{
+    background-color: #f15a3f;
   }
