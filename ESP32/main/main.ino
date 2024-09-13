@@ -21,7 +21,6 @@ uint16_t target = 0;
 
 WebSocketsServer webSocket = WebSocketsServer(81);
 WebServer server(80);
-//AsyncWebServer server(80);
 
 // REPLACE WITH YOUR NETWORK CREDENTIALS
 const char* ssid = "ALHN-7030";
@@ -175,28 +174,32 @@ void setup(void) {
 
   LoopTimer = micros();
 
-  //Start web server
-  server.begin();
-  //Inicializa os servers
-  server.on("/", HTTP_GET, handleWebPage); 
-
   // Inicia o WebSocket server
   webSocket.begin();
   webSocket.onEvent(webSocketEvent);
+
+  server.enableCORS();
+  server.on("/getValues", RestAPI);
+  server.begin();
 
   xTaskCreatePinnedToCore(
       TaskWebServer, /* Function to implement the task */
       "TaskWebServer", /* Name of the task */
       10000,  /* Stack size in words */
       NULL,  /* Task input parameter */
-      4,  /* Priority of the task */
+      0,  /* Priority of the task */
       NULL,  /* Task handle. */
-      0);
+      1);
 
-
-  //-------------------------------------
-  //esc1.begin(DSHOT1200);
-}
+  xTaskCreatePinnedToCore(
+      TaskWebServerAPI, /* Function to implement the task */
+      "TaskWebServerAPI", /* Name of the task */
+      10000,  /* Stack size in words */
+      NULL,  /* Task input parameter */
+      0,  /* Priority of the task */
+      NULL,  /* Task handle. */
+      1);
+  }
 
 void loop(void) {
   //FlyController();
@@ -204,8 +207,8 @@ void loop(void) {
   //esc1.sendThrottleValue(target);
   mot3.write(map(target, 48, 2047, 0, 180));
   
-  Serial.print(",Target: ");
-  Serial.println(target);
+  //Serial.print(",Target: ");
+  //Serial.println(target);
   //Serial.print(",Trottle: ");
   //Serial.println(throttle);
   
@@ -214,396 +217,16 @@ void loop(void) {
 
 void TaskWebServer( void * parameter) {
   while(true){
-    // Mantém o WebSocket ativo
-    webSocket.loop();
-
-    //Processa a Web Page
+    //Roda a API
     server.handleClient();
   }
 }
 
-void handleWebPage(){
-  String html =
-    R"rawliteral(
-      <!DOCTYPE html>
-      <html lang="en">
-      <head>
-          <meta charset="UTF-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <title>Drone Control</title>
-          <style>
-              body {
-                  display: flex;
-                  flex-direction: row;
-
-                  align-items: center;
-                  justify-content: center;
-                  height: 100vh;
-                  background-color: #f0f0f0;
-                  margin: 0;
-              }
-              #enable-btn {
-                  padding: 10px 20px;
-                  font-size: 18px;
-                  margin-bottom: 20px;
-              }
-              .control1 {
-                  display: flex;
-                  flex-direction: row;
-                  align-items: center;
-                  margin-bottom: 20px;
-                  margin: 10px;
-              }
-              .control2 {
-                  display: flex;
-                  flex-direction: column;
-                  align-items: center;
-                  margin-bottom: 20px;
-                  margin: 10px;
-              }
-              .joystick {
-                  width: 150px;
-                  height: 150px;
-                  background-color: #ddd;
-                  border-radius: 50%;
-                  position: relative;
-                  touch-action: none;
-              }
-              .knob {
-                  width: 50px;
-                  height: 50px;
-                  background-color: #888;
-                  border-radius: 50%;
-                  position: absolute;
-                  top: 50%;
-                  left: 50%;
-                  transform: translate(-50%, -50%);
-              }
-              #enable-btn{
-                position: relative;
-              }
-          </style>
-      </head>
-      <body>
-          <div class="control1">
-            <p id="yaw-label">Yaw</p>
-            <div class="control2">
-            <p id="trotle-label">Trotle</p>
-            <div class="joystick" id="joystick1">
-                <div class="knob"></div>
-            </div>
-            </div>
-          </div>
-          <button id="enable-btn">Enable</button>
-          <div class="control1">
-              <p id="pitch-label">Pitch</p>
-              <div class="control2">
-                <p id="roll-label">Roll</p>
-                <div class="joystick" id="joystick2">
-                    <div class="knob"></div>
-                </div>
-              </div>
-          </div>
-          <div>
-            <p>
-                <span>Ganho:</span>
-                <input id="ganho-input" type="text" value="1">
-            </p>
-            <p>
-                <span>Ganho Trotle:</span>
-                <input id="ganho-trotle" type="text" value="1">
-            </p>
-            <p id="joystick-label" style="font-size: 20px; color: black;">Joystick Desconectado</p>
-            <p>
-                <span>IP DRONE: </span>
-                <input id="ip-drone-input" type="text" value="192.168.1.45">
-                <button id="button-conectar">Conectar</button>
-            </p>
-            <p>
-                <div style="border-style: solid; border-color: black; padding: 5px;">
-                    <p>PID Parameters</p>
-                    <span>P:</span>
-                    <input id="pid-p" type="text" value="1">
-                    <span>I:</span>
-                    <input id="pid-i" type="text" value="1">
-                    <span>D:</span>
-                    <input id="pid-d" type="text" value="1">
-                    </br>
-                    <span>PID Time(ms):</span>
-                    <input id="pid-time" type="text" value="4">
-                    <p>Orientation Parameters:</p>
-                    <span>YAW P:</span>
-                    <input id="pid-yaw-p" type="text" value="1">
-                    <span>YAW I:</span>
-                    <input id="pid-yaw-i" type="text" value="1">
-                    <span>YAW D:</span>
-                    <input id="pid-yaw-d" type="text" value="1">
-                    </br>
-                    <button id="pid-salvar" style="height: 40px; width: 90px; background-color: gray;">Salvar</button>
-                </div>
-            </p>
-          </div>
-          <script>
-              // Conecta ao WebSocket server
-              const ip_drone_input = document.getElementById('ip-drone-input');
-              console.log('ws://' + ip_drone_input.value +':81');
-              var socket = new WebSocket('ws://' + ip_drone_input.value +':81');
-
-
-              var ControleDetectado = false;
-              var ControleHabilitado = false;
-              var ControleDrone = {
-                  YAW: 0,
-                  PITCH: 0,
-                  ROLL: 0,
-                  TROTLE: 0,
-                  ENABLE: false
-              };
-
-              var PIDParameters = {
-                PID_P: 1,
-                PID_I: 1,
-                PID_D: 1,
-                PID_TIME: 1,
-                YAW_P: 1,
-                YAW_I: 1,
-                YAW_D: 1,
-              }
-
-              socket.onopen = function(event) {
-                const botao = document.getElementById('button-conectar');
-                botao.style.backgroundColor = 'green';
-                botao.innerHTML = "Conectado";
-                console.log("Conectado")
-               };
-
-              socket.onclose = function(event){
-                const botao = document.getElementById('button-conectar');
-                botao.style.backgroundColor = 'white';
-                botao.innerHTML = "Conectar";
-               }
-
-               // Função para habilitar controle
-              document.getElementById('button-conectar').addEventListener('click', function() {
-                  // Conecta ao WebSocket server
-                  socket = new WebSocket('ws://' + ip_drone_input.value +':81');
-              });
-
-              // Função para habilitar controle
-              document.getElementById('enable-btn').addEventListener('click', function() {
-                  const botao = document.getElementById('enable-btn');
-                  ControleHabilitado = !ControleHabilitado;
-                  if (ControleHabilitado){
-                      botao.style.backgroundColor = 'green';
-                  }else{
-                      botao.style.backgroundColor = 'white';
-                  }
-              });
-
-              // Função para habilitar controle
-              document.getElementById('pid-salvar').addEventListener('click', function() {
-                const botao = document.getElementById('pid-salvar');
-                const inputP = document.getElementById('pid-p');
-                const inputI = document.getElementById('pid-i');
-                const inputD = document.getElementById('pid-d');
-                const inputYAW_P = document.getElementById('pid-yaw-p');
-                const inputYAW_I = document.getElementById('pid-yaw-i');
-                const inputYAW_D = document.getElementById('pid-yaw-d');
-                const inputPID_TIME = document.getElementById('pid-time');
-
-                botao.style.backgroundColor = 'white';
-                try {
-                    PIDParameters.PID_P = inputP.value;
-                    PIDParameters.PID_I = inputI.value;
-                    PIDParameters.PID_D = inputD.value;
-                    PIDParameters.YAW_P = inputYAW_P.value;
-                    PIDParameters.YAW_I = inputYAW_I.value;
-                    PIDParameters.YAW_D = inputYAW_D.value;
-                    PIDParameters.PID_TIME = inputPID_TIME.value;
-
-                    console.log(PIDParameters);
-                    socket.send(JSON.stringify(PIDParameters));
-                    botao.style.backgroundColor = 'green';
-                    console.log("PID Enviado")
-                }catch{
-                    console.log("PID nao enviado.. erro")
-                }                  
-              });
-              
-
-              // Função para manipular os joysticks
-              function initJoystick(joystickId) {
-                  const joystick = document.getElementById(joystickId);
-                  const knob = joystick.querySelector('.knob');
-                  const maxOffset = (joystick.clientWidth - knob.clientWidth) / 2;
-                  
-                  joystick.addEventListener('touchmove', function(event) {
-                      const touch = event.touches[0];
-                      const rect = joystick.getBoundingClientRect();
-                      const x = touch.clientX - rect.left - joystick.clientWidth / 2;
-                      const y = touch.clientY - rect.top - joystick.clientHeight / 2;
-
-                      // Limitar o movimento do knob dentro do joystick
-                      const distance = Math.sqrt(x * x + y * y);
-                      const angle = Math.atan2(y, x);
-
-                      const moveX = Math.cos(angle) * Math.min(distance, maxOffset);
-                      const moveY = Math.sin(angle) * Math.min(distance, maxOffset);
-
-                      knob.style.left = joystick.clientWidth / 2 + moveX +'px';
-                      knob.style.top = joystick.clientHeight / 2 + moveY + 'px';
-                      
-                      scaleX = moveX / maxOffset;
-                      scaleY = moveY / maxOffset * -1;
-                      inputGanho = document.getElementById('ganho-input');
-                      inputGanhoTrotle = document.getElementById('ganho-trotle');
-                      if (joystickId === 'joystick1'){
-                          ControleDrone.TROTLE = scaleY * inputGanhoTrotle.value;
-                          ControleDrone.YAW = scaleX * inputGanho.value;
-                      }
-
-                      if (joystickId === 'joystick2'){
-                          ControleDrone.ROLL = scaleY * inputGanho.value;
-                          ControleDrone.PITCH = scaleX * inputGanho.value;
-                      }
-                  });
-
-                  joystick.addEventListener('touchend', function() {
-                      knob.style.left = '50%';
-                      knob.style.top = '50%';
-
-                      ControleDrone.PITCH = 0;
-                      ControleDrone.YAW = 0;
-                      ControleDrone.TROTLE = 0;
-                      ControleDrone.ROLL = 0;
-                  });
-              }
-
-              function EnviarValorCanais(){
-                ControleDrone.ENABLE = ControleHabilitado; //Atualiza o valor do Enable
-                try {
-                    socket.send(JSON.stringify(ControleDrone));
-                } finally{
-                    console.log("Enviado comando")
-                    setTimeout(EnviarValorCanais, 10);
-                }
-              }
-
-            window.addEventListener("gamepadconnected", (e) => {
-                console.log(
-                    "Gamepad connected at index %d: %s. %d buttons, %d axes.",
-                    e.gamepad.index,
-                    e.gamepad.id,
-                    e.gamepad.buttons.length,
-                    e.gamepad.axes.length,
-                );
-
-                const joystick_label = document.getElementById('joystick-label');
-                joystick_label.innerHTML = "Joystick Detectado";
-                joystick_label.style.backgroundColor = 'green';
-                ControleDetectado = true;
-                readJoystick();
-            });
-
-            window.addEventListener("gamepaddisconnected", (e) => {
-                ControleDetectado = false;
-                ControleHabilitado = false;
-
-                ControleDrone.PITCH = 0;
-                ControleDrone.YAW = 0;
-                ControleDrone.TROTLE = 0;
-                ControleDrone.ROLL = 0;
-                
-                //Atualiza botao enable
-                const botao = document.getElementById('enable-btn');
-                if (ControleHabilitado){
-                    botao.style.backgroundColor = 'green';
-                }else{
-                    botao.style.backgroundColor = 'white';
-                }
-                
-                //Atualiza o knob 1
-                let joystick = document.getElementById('joystick1');
-                let knob = joystick.querySelector('.knob');
-                knob.style.left = '50%';
-                knob.style.top = '50%';
-
-                //Atualiza o knob 2
-                joystick = document.getElementById('joystick2');
-                knob = joystick.querySelector('.knob');
-                knob.style.left = '50%';
-                knob.style.top = '50%';
-
-                const joystick_label = document.getElementById('joystick-label');
-                joystick_label.innerHTML = "Joystick Desconectado";
-                joystick_label.style.backgroundColor = 'white';
-            });
-
-            function readJoystick() {
-                if(navigator.getGamepads().length > 0){
-                    const gamepad = navigator.getGamepads()[0];
-                    if (gamepad) {
-                        if (gamepad.buttons[5].pressed) {
-                            ControleHabilitado = true;
-                            console.log("Habilitado");
-                        }
-                        if (gamepad.buttons[4].pressed) {
-                            ControleHabilitado = false;
-                        }
-                        
-                        //Atualiza botao enable
-                        const botao = document.getElementById('enable-btn');
-                        if (ControleHabilitado){
-                            botao.style.backgroundColor = 'green';
-                        }else{
-                            botao.style.backgroundColor = 'white';
-                        }
-
-                        //Atualiza o knob 1
-                        let joystick = document.getElementById('joystick1');
-                        let knob = joystick.querySelector('.knob');
-                        knob.style.left = ((gamepad.axes[0] + 1) / 2) * 100 + '%';
-                        knob.style.top = ((gamepad.axes[1] + 1) / 2) * 100 + '%';
-
-                        //Atualiza o knob 2
-                        joystick = document.getElementById('joystick2');
-                        knob = joystick.querySelector('.knob');
-                        knob.style.left = ((gamepad.axes[2] + 1) / 2) * 100 + '%';
-                        knob.style.top = ((gamepad.axes[3] + 1) / 2) * 100 + '%';
-
-                        // Acesse os eixos do joystick (e.g., eixo 0 e 1)
-                        inputGanho = document.getElementById('ganho-input');
-                        inputGanhoTrotle = document.getElementById('ganho-trotle');
-                        ControleDrone.YAW  = gamepad.axes[0] * inputGanho.value;
-                        ControleDrone.TROTLE  = gamepad.axes[1] * -1 * inputGanhoTrotle.value;
-                        ControleDrone.PITCH  = gamepad.axes[2] * inputGanho.value;
-                        ControleDrone.ROLL  = gamepad.axes[3] * -1 * inputGanho.value;
-
-                        const yaw_label = document.getElementById('yaw-label');
-                        yaw_label.innerHTML = "Yaw/" + ControleDrone.YAW.toFixed(2);
-                        const trotle_label = document.getElementById('trotle-label');
-                        trotle_label.innerHTML = "Trotle/" + ControleDrone.TROTLE.toFixed(2);
-                        const roll_label = document.getElementById('roll-label');
-                        roll_label.innerHTML = "Roll/" + ControleDrone.ROLL.toFixed(2);
-                        const pitch_label = document.getElementById('pitch-label');
-                        pitch_label.innerHTML = "Pitch/" + ControleDrone.PITCH.toFixed(2);
-
-                    }
-                }
-
-                setTimeout(readJoystick, 10);
-            }
-
-
-              initJoystick('joystick1');
-              initJoystick('joystick2');
-              EnviarValorCanais();
-          </script>
-      </body>
-      </html>
-    )rawliteral"
-  ;
-  server.send(200, "text/html", html);
+void TaskWebServerAPI( void * parameter) {
+  while(true){
+    // Mantém o WebSocket ativo
+    webSocket.loop();
+  }
 }
 
 void Beep(int code){
@@ -992,13 +615,6 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
 
     // Tenta deserializar o JSON
     DeserializationError error = deserializeJson(doc, message);
-    /*
-    if (error) {
-      Serial.print(F("Falha ao analisar JSON: "));
-      Serial.println(error.f_str());
-      server.send(400, "application/json", "{\"status\":\"failed\"}");
-      return;
-    }*/
 
     // Acessa os valores do JSON
     if (doc.containsKey("PID_P")){
@@ -1113,6 +729,20 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
   }
 }
 
+void RestAPI(){
+  StaticJsonDocument<1024> jsonDocument;
+  char buffer[1024];
+
+  jsonDocument.clear(); // Clear json buffer
+  JsonObject orientation = jsonDocument.to<JsonObject>();
+  orientation["Yaw"] = 0;
+  orientation["Pitch"] = AnglePitch;
+  orientation["Roll"] = 0;
+
+  serializeJson(jsonDocument, buffer);
+  server.send(200, "application/json", buffer);
+}
+
 void gyro_signals(void)
 {
   Wire.beginTransmission(0x68);
@@ -1186,11 +816,6 @@ void reset_pid(void)
   PrevErrorAngleRoll=0; PrevErrorAnglePitch=0;    
   PrevItermAngleRoll=0; PrevItermAnglePitch=0;
 }
-
-
-//void notFound(AsyncWebServerRequest *request) {
-//  request->send(404, "text/plain", "Not found");
-//}
 
 String readFile(fs::FS &fs, const char * path){
   Serial.printf("Reading file: %s\r\n", path);

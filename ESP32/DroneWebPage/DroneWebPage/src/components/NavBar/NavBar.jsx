@@ -8,6 +8,12 @@ import { JoystickContext } from "../../context/JoystickContext";
 const NavBar = () => {
   const [joystickConectado, setJoystickConectado] = useState(false);
   const {joystick} = useContext(JoystickContext);
+  const {setUrl, connectionStatus, sendMessage, ip} = useContext(ApiContext);
+
+  useEffect(() => {
+    console.log(connectionStatus);
+  }, [connectionStatus])
+  
 
   useEffect(()=>{
       setJoystickConectado(joystick !== null);
@@ -22,13 +28,13 @@ const NavBar = () => {
       <div className='nav-status'>
       <div className={joystickConectado ? 'nav-status-conexao conectado' : 'nav-status-conexao desconectado'}>
           <span>JOYSTCIK</span>
-          <span>DESCONECTADO</span>
-        </div>
-        <div className='nav-status-conexao desconectado'>
-          <span>DRONE</span><br/>
-          <span>DESCONECTADO</span><br />
-          <span>IP: 192.168.1.45</span>
-        </div>
+          <span>{joystickConectado ? "CONECTADO" : "DESCONECTADO"}</span>
+      </div>
+      <div className={connectionStatus === "Open" ? 'nav-status-conexao conectado' : 'nav-status-conexao desconectado'}>
+        <span>DRONE</span><br/>
+        <span>COM: {connectionStatus}</span><br />
+        <span>IP: {ip}</span>
+      </div>
       </div>
     </div>
   )

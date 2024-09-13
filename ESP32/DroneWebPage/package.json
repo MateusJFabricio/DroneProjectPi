@@ -8,6 +8,7 @@
     "react-gamepads": "^1.0.0",
     "react-leaflet": "^4.2.1",
     "react-router-dom": "^6.26.2",
+    "react-use-websocket": "^3.0.0",
     "save": "^2.9.0",
     "three": "^0.168.0"
   }
