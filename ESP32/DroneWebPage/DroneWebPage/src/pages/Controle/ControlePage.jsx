@@ -7,10 +7,10 @@ import {JoystickContext} from '../../context/JoystickContext'
 const ControlePage = () => {
 
   const {joystick} = useContext(JoystickContext);
-  const [yaw, setYaw] = useState(500)
-  const [pitch, setPitch] = useState(500)
-  const [roll, setRoll] = useState(500)
-  const [trotle, setTrotle] = useState(500)
+  const [yaw, setYaw] = useState(1500)
+  const [pitch, setPitch] = useState(1500)
+  const [roll, setRoll] = useState(1500)
+  const [trotle, setTrotle] = useState(1500)
 
   function map_range(value, low1, high1, low2, high2) {
     return Math.trunc(low2 + (high2 - low2) * (value - low1) / (high1 - low1));
@@ -18,10 +18,10 @@ const ControlePage = () => {
 
   useEffect(()=>{
     if (joystick !== null){
-      setYaw( map_range(joystick.axes[2], -1, 1, 48, 2047));
-      setPitch( map_range(joystick.axes[3] * -1, -1, 1, 48, 2047));
-      setRoll( map_range(joystick.axes[0], -1, 1, 48, 2047));
-      setTrotle( map_range(joystick.axes[1] * -1, -1, 1, 48, 2047));
+      setYaw( map_range(joystick.axes[2], -1, 1, 1000, 2000));
+      setPitch( map_range(joystick.axes[3] * -1, -1, 1, 1000, 2000));
+      setRoll( map_range(joystick.axes[0], -1, 1, 1000, 2000));
+      setTrotle( map_range(joystick.axes[1] * -1, -1, 1, 1000, 2000));
     }
 }, [joystick])
 
@@ -39,10 +39,10 @@ const ControlePage = () => {
         </div>
       </div>
       <div id='controlepage-joystickbars'>
-          <JoystickBar title={"YAW"} value={yaw} min={48} max={2047} color={"red"}/>
-          <JoystickBar title={"PITCH"} value={pitch} min={48} max={2047} color={"green"}/>
-          <JoystickBar title={"ROLL"} value={roll} min={48} max={2047} color={"yellow"}/>
-          <JoystickBar title={"TROTTLE"} value={trotle} min={48} max={2047} color={"blue"}/>
+          <JoystickBar title={"YAW"} value={yaw} min={1000} max={2000} color={"red"}/>
+          <JoystickBar title={"PITCH"} value={pitch} min={1000} max={2000} color={"green"}/>
+          <JoystickBar title={"ROLL"} value={roll} min={1000} max={2000} color={"yellow"}/>
+          <JoystickBar title={"TROTTLE"} value={trotle} min={1000} max={2000} color={"blue"}/>
       </div>
     </div>
   )

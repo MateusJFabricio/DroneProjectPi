@@ -53,3 +53,25 @@
   .desconectado{
     background-color: #f15a3f;
   }
+
+  .statusDroneContainer{
+    display: flex;
+    align-items: center;
+    text-align: center;
+  }
+
+  .statusDroneDesarmado{
+    background-color: yellow;
+    color: black;
+    height: 80%;
+    width: 120px;
+    padding: 5px;
+  }
+
+  .statusDroneArmado{
+    background-color: green;
+    color: white;
+    height: 80%;
+    width: 120px;
+    padding: 5px;
+  }

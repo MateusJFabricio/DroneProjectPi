@@ -26,6 +26,10 @@ const MenuLateral = () => {
     navigate("/Controle")
   }
 
+  const handleBackupClick = ()=>{
+    navigate("/Backup")
+  }
+
   return (
     <div id='menu'>
       <div className='menu-item' onClick={handleConexaoClick}>Conexão</div>
@@ -34,6 +38,7 @@ const MenuLateral = () => {
       <div className='menu-subitem' onClick={handleGeralClick}>Geral</div>
       <div className='menu-subitem' onClick={handlePIDClick}>PID</div>
       <div className='menu-item' onClick={handleControleClick}>Controle</div>
+      <div className='menu-item' onClick={handleBackupClick}>Backup/Restore</div>
     </div>
   )
 }

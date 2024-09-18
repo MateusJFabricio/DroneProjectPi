@@ -1,9 +1,3 @@
-
-//THERE IS NO WARRANTY FOR THE SOFTWARE, TO THE EXTENT PERMITTED BY APPLICABLE LAW. EXCEPT WHEN OTHERWISE STATED IN WRITING THE COPYRIGHT HOLDERS AND/OR 
-//OTHER PARTIES PROVIDE THE SOFTWARE “AS IS” WITHOUT WARRANTY OF ANY KIND, EITHER EXPRESSED OR IMPLIED, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES 
-//OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE. THE ENTIRE RISK AS TO THE QUALITY AND PERFORMANCE OF THE SOFTWARE IS WITH THE CUSTOMER. SHOULD THE 
-//SOFTWARE PROVE DEFECTIVE, THE CUSTOMER ASSUMES THE COST OF ALL NECESSARY SERVICING, REPAIR, OR CORRECTION EXCEPT TO THE EXTENT SET OUT UNDER THE HARDWARE WARRANTY IN THESE TERMS.
-
 #include <WiFi.h>
 #include <WebServer.h>
 #include <WebSocketsServer.h>
@@ -17,27 +11,41 @@
 #include <DShotRMT.h>
 
 uint16_t throttle = 0;
-uint16_t target = 0;
 
 WebSocketsServer webSocket = WebSocketsServer(81);
 WebServer server(80);
 
 // REPLACE WITH YOUR NETWORK CREDENTIALS
-const char* ssid = "ALHN-7030";
-const char* password = "cLA7pFG8CL";
+const char* ssid = "ROBOSOFT";
+const char* password = "robosoft";
+unsigned long timeSpanLoop;
+unsigned long timeSpanTaskAPI;
+unsigned long timeSpanTaskSocket;
+bool pingEnable = false;
 
 const char* PARAM_TIME_CYCLE = "tc";  //Computation time cycle
 
 //FlyController variables
-uint16_t ROLL = 992;
-uint16_t PITCH = 992;
-uint16_t YAW = 992;
-uint16_t TROTLE = 172;
-uint16_t ENABLE = 992;
+struct ControlType{
+  uint16_t ROLL; // de 1000 a 2000 com idle em 1500
+  uint16_t PITCH; // de 1000 a 2000 com idle em 1500
+  uint16_t YAW; // de 1000 a 2000 com idle em 1500
+  uint16_t TROTLE; //incremental de 1000 a 2000
+  bool ENABLE; //Habilita o Drone pra voo
+  bool STOP; //Para imediatamente o drone
+};
+
+ControlType Control = {1500, 1500, 1500, 1000, false, false};
 
 volatile float RatePitch, RateRoll, RateYaw;
 volatile float RateCalibrationPitch, RateCalibrationRoll, RateCalibrationYaw;
 int RateCalibrationNumber;
+
+float GainMotor1 = 1.0;
+float GainMotor2 = 1.0;
+float GainMotor3 = 1.0;
+float GainMotor4 = 1.0;
+float TrotleLimit = 1;
 
 Servo mot1;
 Servo mot2;
@@ -47,10 +55,6 @@ const int mot1_pin = 13;
 const int mot2_pin = 12;
 const int mot3_pin = 14;
 const int mot4_pin = 27;
-
-//DShotRMT esc1(mot1_pin, RMT_CHANNEL_0);
-
-volatile int ReceiverValue[6]; // Increase the array size to 6 for Channel 1 to Channel 6
 
 // float voltage;
 
@@ -100,7 +104,10 @@ float DAngleRoll=0; float DAnglePitch=DAngleRoll;
 volatile float MotorInput1, MotorInput2, MotorInput3, MotorInput4;
 
 void setup(void) {
-  
+  timeSpanLoop = micros();
+  timeSpanTaskAPI = micros();
+  timeSpanTaskSocket = micros();
+
   Serial.begin(115200);
   // Initialize SPIFFS
   #ifdef ESP32
@@ -126,6 +133,7 @@ void setup(void) {
   Serial.println(WiFi.localIP());
 
   //Configura MPU6050
+  Serial.println("Configurano o MPU6050");
   Wire.setClock(400000);
   Wire.begin();
   delay(250);
@@ -133,12 +141,15 @@ void setup(void) {
   Wire.write(0x6B);
   Wire.write(0x00);
   Wire.endTransmission();
+  Serial.println("Finalizado a configuracao do MPU6050");
 
   //Configura Motor
+  Serial.println("Configurando motores");
   mot1.attach(mot1_pin,1000,2000);
   mot2.attach(mot2_pin,1000,2000);
   mot3.attach(mot3_pin,1000,2000);
   mot4.attach(mot4_pin,1000,2000);
+  Serial.println("Finalizado as configuracoes dos motores");
 
   //to stop esc from beeping
   mot1.write(0);
@@ -148,17 +159,21 @@ void setup(void) {
 
   //Beep de inicializacao
   pinMode(15, OUTPUT);
-  Beep(1);
 
   //Calibra o MPU6050
-  for (RateCalibrationNumber = 0; RateCalibrationNumber < 4000; RateCalibrationNumber++)
-  {
-    gyro_signals();
-    RateCalibrationRoll += RateRoll;
-    RateCalibrationPitch += RatePitch;
-    RateCalibrationYaw += RateYaw;
-    delay(1);
+  if(false){
+    Serial.println("Calibrando o MPU6050");
+    for (RateCalibrationNumber = 0; RateCalibrationNumber < 4000; RateCalibrationNumber++)
+    {
+      gyro_signals();
+      RateCalibrationRoll += RateRoll;
+      RateCalibrationPitch += RatePitch;
+      RateCalibrationYaw += RateYaw;
+      //delay(1);
+    }
+    Serial.println("Calibrando o MPU6050 finalizado");
   }
+  
 
   RateCalibrationRoll /= 4000;
   RateCalibrationPitch /= 4000;
@@ -175,50 +190,105 @@ void setup(void) {
   LoopTimer = micros();
 
   // Inicia o WebSocket server
+  Serial.println("Iniciando o wesocket");
   webSocket.begin();
   webSocket.onEvent(webSocketEvent);
 
   server.enableCORS();
-  server.on("/getValues", RestAPI);
+  server.on("/getValues", APIGetAngles);
+  server.on("/getTrotleLimit", APIGetTrotleLimit);
+  server.on("/getGainMotors", APIGetGainMotors);
+  server.on("/postGainMotors", HTTP_POST, APIPostGainMotors);
+  server.on("/postGainMotors", HTTP_OPTIONS, APIOptions);
+  server.on("/postTrotleLimit", HTTP_POST, APIPostTrotleLimit);
   server.begin();
-
+  Serial.println("Antes das tasks");
   xTaskCreatePinnedToCore(
       TaskWebServer, /* Function to implement the task */
       "TaskWebServer", /* Name of the task */
-      10000,  /* Stack size in words */
+      20000,  /* Stack size in words */
       NULL,  /* Task input parameter */
-      0,  /* Priority of the task */
+      1,  /* Priority of the task */
       NULL,  /* Task handle. */
       1);
 
   xTaskCreatePinnedToCore(
       TaskWebServerAPI, /* Function to implement the task */
       "TaskWebServerAPI", /* Name of the task */
-      10000,  /* Stack size in words */
+      20000,  /* Stack size in words */
       NULL,  /* Task input parameter */
-      0,  /* Priority of the task */
+      1,  /* Priority of the task */
       NULL,  /* Task handle. */
       1);
-  }
+
+  GainMotor1 = readFile(SPIFFS, "/motorGainM1.txt").toFloat();
+  GainMotor2 = readFile(SPIFFS, "/motorGainM2.txt").toFloat();
+  GainMotor3 = readFile(SPIFFS, "/motorGainM3.txt").toFloat();
+  GainMotor4 = readFile(SPIFFS, "/motorGainM4.txt").toFloat();
+
+  TrotleLimit = readFile(SPIFFS, "/trotleLimit.txt").toFloat();
+
+  Serial.println("Fim do setup");
+}
 
 void loop(void) {
-  //FlyController();
+  Ping(0, &timeSpanLoop);
+  int limite = trunc(500 * TrotleLimit) + 1500;
 
-  //esc1.sendThrottleValue(target);
-  mot3.write(map(target, 48, 2047, 0, 180));
+  int m1 = trunc(Control.TROTLE * GainMotor1);
+  m1 = NormalizeMinMax(m1 > limite ? limite : m1, 1500, 2000);
+
+  int m2 = trunc(Control.TROTLE * GainMotor2);
+  m2 = NormalizeMinMax(m2 > limite ? limite : m2, 1500, 2000);
+
+  int m3 = trunc(Control.TROTLE * GainMotor3);
+  m3 = NormalizeMinMax(m3 > limite ? limite : m3, 1500, 2000);
+
+  int m4 = trunc(Control.TROTLE * GainMotor4);
+  m4 = NormalizeMinMax(m4 > limite ? limite : m4, 1500, 2000);
   
-  //Serial.print(",Target: ");
-  //Serial.println(target);
-  //Serial.print(",Trottle: ");
-  //Serial.println(throttle);
+  Serial.print(",M1:"),
+  Serial.print(m1);
+  Serial.print(",M2:"),
+  Serial.print(m2);
+  Serial.print(",M3:"),
+  Serial.print(m3);
+  Serial.print(",M4:"),
+  Serial.println(m4);
+
+  if (Control.ENABLE){
+    mot1.write(map(m1, 1500, 2000, 0, 180));
+    mot2.write(map(m2, 1500, 2000, 0, 180));
+    mot3.write(map(m3, 1500, 2000, 0, 180));
+    mot4.write(map(m4, 1500, 2000, 0, 180));
+  }else{
+    mot1.write(0);
+    mot2.write(0);
+    mot3.write(0);
+    mot4.write(0);
+  }
   
   //delay(1);
 }
 
+int NormalizeMinMax(int val, int min, int max){
+  return val > max ? max : (val < min ? min : val);
+}
+
+void Ping(int id, unsigned long *timeSpan){
+  if(pingEnable){
+    String p = ",TimeSpan(" + String(id) + "):";
+    Serial.print(p);
+    Serial.println(micros() - *timeSpan);
+    *timeSpan = micros();
+  }
+}
 void TaskWebServer( void * parameter) {
   while(true){
     //Roda a API
     server.handleClient();
+
+    Ping(1, &timeSpanTaskSocket);
   }
 }
 
@@ -226,6 +296,8 @@ void TaskWebServerAPI( void * parameter) {
   while(true){
     // Mantém o WebSocket ativo
     webSocket.loop();
+
+    Ping(2, &timeSpanTaskAPI);
   }
 }
 
@@ -249,7 +321,7 @@ void Beep(int code){
 }
 
 void FlyController(){
-  if(ReceiverValue[2] < 1030 && ReceiverValue[4] > 1500 )
+  if(Control.TROTLE < 1030 && Control.ENABLE )
   {
     PRateRoll = readFile(SPIFFS, "/pGain.txt").toFloat();
     IRateRoll = readFile(SPIFFS, "/iGain.txt").toFloat();
@@ -268,7 +340,6 @@ void FlyController(){
   RatePitch -= RateCalibrationPitch;
   RateYaw -= RateCalibrationYaw;
 
-
   kalman_1d(KalmanAngleRoll, KalmanUncertaintyAngleRoll, RateRoll, AngleRoll);
   KalmanAngleRoll=Kalman1DOutput[0]; KalmanUncertaintyAngleRoll=Kalman1DOutput[1];
   kalman_1d(KalmanAnglePitch, KalmanUncertaintyAnglePitch, RatePitch, AnglePitch);
@@ -276,10 +347,10 @@ void FlyController(){
   
   neutralPositionAdjustment();
 
-  DesiredAngleRoll=0.1*(ReceiverValue[0]-1500);
-  DesiredAnglePitch=0.1*(ReceiverValue[1]-1500);
-  InputThrottle=ReceiverValue[2];
-  DesiredRateYaw=0.15*(ReceiverValue[3]-1500);
+  DesiredAngleRoll=0.1*(Control.ROLL-1500);
+  DesiredAnglePitch=0.1*(Control.PITCH-1500);
+  InputThrottle=Control.TROTLE;
+  DesiredRateYaw=0.15*(Control.YAW-1500);
 
   ErrorAngleRoll=DesiredAngleRoll-KalmanAngleRoll;
   ErrorAnglePitch=DesiredAnglePitch-KalmanAnglePitch;
@@ -318,6 +389,7 @@ void FlyController(){
     InputThrottle = 1800;
   }
 
+  /*
   Serial.print(",InputTrotle:");
   Serial.print(InputThrottle);
   Serial.print(",InputRoll:");
@@ -334,6 +406,7 @@ void FlyController(){
   Serial.print(YAW);
   Serial.print(", TROTLE: ");
   Serial.println(TROTLE);
+  */
 
   MotorInput1 =  (InputThrottle - InputRoll - InputPitch - InputYaw); // front right - counter clockwise
   MotorInput2 =  (InputThrottle - InputRoll + InputPitch + InputYaw); // rear right - clockwise
@@ -381,7 +454,7 @@ void FlyController(){
   }
 
   int ThrottleCutOff = 1000;
-  if (ReceiverValue[2] < 1050)
+  if (Control.TROTLE < 1050)
   {
     MotorInput1 = ThrottleCutOff;
     MotorInput2 = ThrottleCutOff;
@@ -390,10 +463,16 @@ void FlyController(){
     reset_pid();
   }
 
+  /*
   mot1.write(map(MotorInput1, 1000, 2000, 0, 180));
   mot2.write(map(MotorInput2, 1000, 2000, 0, 180));
   mot3.write(map(MotorInput3, 1000, 2000, 0, 180));
   mot4.write(map(MotorInput4, 1000, 2000, 0, 180));
+  */
+  mot1.write(map(Control.TROTLE, 1000, 2000, 0, 180));
+  mot2.write(map(Control.TROTLE, 1000, 2000, 0, 180));
+  mot3.write(map(Control.TROTLE, 1000, 2000, 0, 180));
+  mot4.write(map(Control.TROTLE, 1000, 2000, 0, 180));
 
   // voltage= (analogRead(36)/4096)*12.46*(35.9/36);
   // if(voltage<11.1)
@@ -417,16 +496,16 @@ void FlyController(){
   //   // Serial.print(" - ");
 
   //Motor PWMs in us
-    // Serial.print("MotVals-");
-    // Serial.print(MotorInput1);
-    // Serial.print("  ");
-    // Serial.print(MotorInput2);
-    // Serial.print("  ");
-    // Serial.print(MotorInput3);
-    // Serial.print("  ");
-    // Serial.print(MotorInput4);
-    // Serial.print(" -- ");
-
+  /*
+     Serial.print(",MotorInput1:");
+     Serial.print(MotorInput1);
+     Serial.print(",MotorInput2:");
+     Serial.print(MotorInput2);
+     Serial.print(",MotorInput3:");
+     Serial.print(MotorInput3);
+     Serial.print(",MotorInput4:");
+     Serial.println(MotorInput4);
+  */
   // //Reciever translated rates
   //   Serial.print(DesiredRateRoll);
   //   Serial.print("  ");
@@ -484,128 +563,28 @@ void kalman_1d(float KalmanState, float KalmanUncertainty, float KalmanInput, fl
   Kalman1DOutput[1]=KalmanUncertainty;
 }
 
-/* Tratamento de sinais RadioFrequencia
-void channelInterruptHandler()
-{
-  current_time = micros();
-  // Channel 1
-  if (digitalRead(channel_1_pin))
-  {
-    if (last_channel_1 == 0)
-    {
-      last_channel_1 = 1;
-      timer_1 = current_time;
-    }
-  }
-  else if (last_channel_1 == 1)
-  {
-    last_channel_1 = 0;
-    ReceiverValue[0] = current_time - timer_1;
-  }
-
-  // Channel 2
-  if (digitalRead(channel_2_pin))
-  {
-    if (last_channel_2 == 0)
-    {
-      last_channel_2 = 1;
-      timer_2 = current_time;
-    }
-  }
-  else if (last_channel_2 == 1)
-  {
-    last_channel_2 = 0;
-    ReceiverValue[1] = current_time - timer_2;
-  }
-
-  // Channel 3
-  if (digitalRead(channel_3_pin))
-  {
-    if (last_channel_3 == 0)
-    {
-      last_channel_3 = 1;
-      timer_3 = current_time;
-    }
-  }
-  else if (last_channel_3 == 1)
-  {
-    last_channel_3 = 0;
-    ReceiverValue[2] = current_time - timer_3;
-  }
-
-  // Channel 4
-  if (digitalRead(channel_4_pin))
-  {
-    if (last_channel_4 == 0)
-    {
-      last_channel_4 = 1;
-      timer_4 = current_time;
-    }
-  }
-  else if (last_channel_4 == 1)
-  {
-    last_channel_4 = 0;
-    ReceiverValue[3] = current_time - timer_4;
-  }
-
-  // Channel 5
-  if (digitalRead(channel_5_pin))
-  {
-    if (last_channel_5 == 0)
-    {
-      last_channel_5 = 1;
-      timer_5 = current_time;
-    }
-  }
-  else if (last_channel_5 == 1)
-  {
-    last_channel_5 = 0;
-    ReceiverValue[4] = current_time - timer_5;
-  }
-
-  // Channel 6
-  if (digitalRead(channel_6_pin))
-  {
-    if (last_channel_6 == 0)
-    {
-      last_channel_6 = 1;
-      timer_6 = current_time;
-    }
-  }
-  else if (last_channel_6 == 1)
-  {
-    last_channel_6 = 0;
-    ReceiverValue[5] = current_time - timer_6;
-  }
-}
-*/
-
 void neutralPositionAdjustment()
 {
-  return;
   int min = 1490;
   int max = 1510;
-  if (ReceiverValue[0] < max && ReceiverValue[0] > min)
+  if (Control.ROLL < max && Control.ROLL > min)
   {
-    ReceiverValue[0]= 1500;
+    Control.ROLL= 1500;
   } 
-  if (ReceiverValue[1] < max && ReceiverValue[1] > min)
+
+  if (Control.YAW < max && Control.YAW > min)
   {
-    ReceiverValue[1]= 1500;
+    Control.YAW= 1500;
   } 
-  if (ReceiverValue[3] < max && ReceiverValue[3] > min)
+
+  if (Control.PITCH < max && Control.PITCH > min)
   {
-    ReceiverValue[3]= 1500;
-  } 
-  if(ReceiverValue[0]==ReceiverValue[1] && ReceiverValue[1]==ReceiverValue[3] && ReceiverValue[3]==ReceiverValue[0] )
-  {
-    ReceiverValue[0]= 1500;
-    ReceiverValue[1]= 1500;
-    ReceiverValue[3]= 1500;
+    Control.PITCH= 1500;
   }
 }
 
 void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length) {
+  
   if(type == WStype_TEXT) {
     // Recebe a mensagem do cliente
     String message = String((char*) payload);
@@ -615,6 +594,19 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
 
     // Tenta deserializar o JSON
     DeserializationError error = deserializeJson(doc, message);
+    switch (error.code()) {
+    case DeserializationError::Ok:
+        break;
+    case DeserializationError::InvalidInput:
+        Serial.println("Invalid input!");
+        return;
+    case DeserializationError::NoMemory:
+        Serial.println("Not enough memory");
+        return;
+    default:
+        Serial.println("Deserialization failed");
+        return;
+    }
 
     // Acessa os valores do JSON
     if (doc.containsKey("PID_P")){
@@ -654,82 +646,100 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
 
     if (doc.containsKey("ROLL")){
       float roll = doc["ROLL"];
-      ROLL = roll * 1000 + 1000;
+      Control.ROLL = map(trunc(roll * 1000), -1000, 1000, 1000, 2000);
     }
-
-    ROLL = ROLL > 1811 ? 1811 : ROLL;
-    ROLL = ROLL < 172 ? 172 : ROLL;
 
     if (doc.containsKey("PITCH")){
       float pitch = doc["PITCH"];
-      PITCH = pitch * 1000 + 1000;
+      Control.PITCH = map(trunc(pitch * 1000), -1000, 1000, 1000, 2000);
     }
-
-    PITCH = PITCH > 1811 ? 1811 : PITCH;
-    PITCH = PITCH < 172 ? 172 : PITCH;
 
     if (doc.containsKey("YAW")){
       float yaw = doc["YAW"];
-      YAW = yaw * 1000 + 1000;
+      Control.YAW = map(trunc(yaw * 1000), -1000, 1000, 1000, 2000);
     }
-
-    YAW = YAW > 1811 ? 1811 : YAW;
-    YAW = YAW < 172 ? 172 : YAW;
 
     if (doc.containsKey("TROTLE")){
       float trotle = doc["TROTLE"];
-      target = map(trunc(trotle * 1000), -1000, 1000, 48, 2047);
-      //Serial.print("Convertido(float): ");
-      //Serial.println(target);
-      //if(trotle >= 0){
-      //  target = (uint16_t) map(trotle * 1000, 0, 1000, 48, 2047); 
-      //}
-
-      TROTLE = trotle * 1000 + 1000;
-      //Serial.print("TROTLE:");
-      //Serial.println(TROTLE);
-      //if (trotle > 0.1 || trotle < -0.1){
-      //  TROTLE += trotle;
-      //}
+      const float trotleFactor = 200;
+      Control.TROTLE = map(trunc(trotle * 1000), -1000, 1000, 1000, 2000);
+      Control.TROTLE = Control.TROTLE > 2000 ? 2000 : Control.TROTLE;
+      Control.TROTLE = Control.TROTLE < 1000 ? 1000 : Control.TROTLE;
     }
 
-    TROTLE = TROTLE > 1811 ? 1811 : TROTLE;
-    TROTLE = TROTLE < 172 ? 172 : TROTLE;
-
-    if (ENABLE != 992){
-      TROTLE -= 5;
+    if (!Control.ENABLE){
+      Control.TROTLE -= 5;
     }
-
-    ReceiverValue[0] = ROLL;
-    ReceiverValue[1] = PITCH;
-    ReceiverValue[2] = TROTLE;
-    ReceiverValue[3] = YAW;
 
     if (doc.containsKey("ENABLE")){
       bool enable = doc["ENABLE"];
-      if (enable){
-        ENABLE = 992;
-      }else{
-        ENABLE = 1400;
+
+      if (!Control.ENABLE && enable){
+        if (Control.TROTLE < 1100){
+          Control.ENABLE = true;
+        }
+      }
+
+      if (!enable){
+        Control.ENABLE = false;
+      }
+    }
+
+    //Stop Drone
+    if (doc.containsKey("STOP")){
+      bool stop = doc["STOP"];
+      Control.STOP = stop;
+      if(Control.STOP){
+        Control.ENABLE = false;
+        Control.TROTLE = 1000;
       }
     }
 
     /*
     Serial.print("ROLL: ");
-    Serial.print(ROLL);
+    Serial.print(Control.ROLL);
     Serial.print(", PITCH: ");
-    Serial.print(PITCH);
+    Serial.print(Control.PITCH);
     Serial.print(", YAW: ");
-    Serial.print(YAW);
-    Serial.print(", TROTLE: ");
-    Serial.print(TROTLE);
+    Serial.print(Control.YAW);
+    Serial.print(",TROTLE:");
+    Serial.println(Control.TROTLE);
     Serial.print(", ENABLE: ");
-    Serial.println(ENABLE);
+    Serial.print(Control.ENABLE);
+    Serial.print(", STOP: ");
+    Serial.println(Control.STOP);
     */
   }
 }
 
-void RestAPI(){
+void APIGetGainMotors(){
+  StaticJsonDocument<1024> jsonDocument;
+  char buffer[1024];
+
+  jsonDocument.clear(); // Clear json buffer
+  JsonObject gains = jsonDocument.to<JsonObject>();
+  gains["GANHO_M1"] = readFile(SPIFFS, "/motorGainM1.txt").toFloat();
+  gains["GANHO_M2"] = readFile(SPIFFS, "/motorGainM2.txt").toFloat();
+  gains["GANHO_M3"] = readFile(SPIFFS, "/motorGainM3.txt").toFloat();
+  gains["GANHO_M4"] = readFile(SPIFFS, "/motorGainM4.txt").toFloat();
+
+  serializeJson(jsonDocument, buffer);
+  server.send(200, "application/json", buffer);
+}
+
+void APIGetTrotleLimit(){
+  StaticJsonDocument<1024> jsonDocument;
+  char buffer[1024];
+
+  jsonDocument.clear(); // Clear json buffer
+  JsonObject json = jsonDocument.to<JsonObject>();
+  json["TROTLE_LIMIT"] = readFile(SPIFFS, "/trotleLimit.txt").toFloat();
+
+  serializeJson(jsonDocument, buffer);
+  server.send(200, "application/json", buffer);
+}
+
+void APIGetAngles(){
   StaticJsonDocument<1024> jsonDocument;
   char buffer[1024];
 
@@ -737,10 +747,84 @@ void RestAPI(){
   JsonObject orientation = jsonDocument.to<JsonObject>();
   orientation["Yaw"] = 0;
   orientation["Pitch"] = AnglePitch;
-  orientation["Roll"] = 0;
+  orientation["Roll"] = AngleRoll;
 
   serializeJson(jsonDocument, buffer);
   server.send(200, "application/json", buffer);
+}
+
+void APIOptions(){
+  server.sendHeader("Access-Control-Allow-Origin", "*");
+  server.sendHeader("Access-Control-Allow-Methods", "POST, GET, OPTIONS");
+  server.sendHeader("Access-Control-Allow-Headers", "Content-Type");
+  server.send(204);
+}
+
+void APIPostGainMotors() {
+  if (server.hasArg("plain")) {
+    String json = server.arg("plain");  // Recebe o corpo da requisição
+
+    // Cria um objeto JSON para armazenar os dados recebidos
+    StaticJsonDocument<200> doc;
+
+    // Deserializa o JSON recebido
+    DeserializationError error = deserializeJson(doc, json);
+
+    if (error) {
+      Serial.print("Erro ao parsear JSON: ");
+      Serial.println(error.c_str());
+      server.send(400, "application/json", "{\"status\":\"erro\",\"msg\":\"JSON inválido\"}");
+      return;
+    }
+
+    // Exemplo de como acessar os campos do JSON
+    GainMotor1 = doc["GANHO_M1"];
+    GainMotor2 = doc["GANHO_M2"];
+    GainMotor3 = doc["GANHO_M3"];
+    GainMotor4 = doc["GANHO_M4"];
+
+    writeFile(SPIFFS, "/motorGainM1.txt", String(GainMotor1).c_str());
+    writeFile(SPIFFS, "/motorGainM2.txt", String(GainMotor2).c_str());
+    writeFile(SPIFFS, "/motorGainM3.txt", String(GainMotor3).c_str());
+    writeFile(SPIFFS, "/motorGainM4.txt", String(GainMotor4).c_str());
+
+    // Resposta ao cliente
+    //server.sendHeader("Access-Control-Allow-Origin", "*");
+    server.send(200, "application/json", "{\"status\":\"sucesso\",\"msg\":\"JSON recebido com sucesso\"}");
+  } else {
+    server.send(400, "application/json", "{\"status\":\"erro\",\"msg\":\"Corpo vazio no POST\"}");
+  }
+}
+
+
+void APIPostTrotleLimit() {
+  if (server.hasArg("plain")) {
+    String json = server.arg("plain");  // Recebe o corpo da requisição
+
+    // Cria um objeto JSON para armazenar os dados recebidos
+    StaticJsonDocument<200> doc;
+
+    // Deserializa o JSON recebido
+    DeserializationError error = deserializeJson(doc, json);
+
+    if (error) {
+      Serial.print("Erro ao parsear JSON: ");
+      Serial.println(error.c_str());
+      server.send(400, "application/json", "{\"status\":\"erro\",\"msg\":\"JSON inválido\"}");
+      return;
+    }
+
+    // Exemplo de como acessar os campos do JSON
+    TrotleLimit = doc["TROTLE_LIMIT"];
+
+    writeFile(SPIFFS, "/trotleLimit.txt", String(TrotleLimit).c_str());
+
+    // Resposta ao cliente
+    //server.sendHeader("Access-Control-Allow-Origin", "*");
+    server.send(200, "application/json", "{\"status\":\"sucesso\",\"msg\":\"JSON recebido com sucesso\"}");
+  } else {
+    server.send(400, "application/json", "{\"status\":\"erro\",\"msg\":\"Corpo vazio no POST\"}");
+  }
 }
 
 void gyro_signals(void)
@@ -774,12 +858,20 @@ void gyro_signals(void)
   RateRoll=(float)GyroZ/65.5;
   RatePitch=(float)GyroX/65.5;
   RateYaw=(float)GyroY/65.5;
-  AccX=(float)AccXLSB/4096;
-  AccY=(float)AccYLSB/4096;
+  AccX=(float)AccXLSB/4096; //Aponta pro lado
+  AccY=(float)AccYLSB/4096; //Aponta pra frente
   AccZ=(float)AccZLSB/4096;
+  
+  /*Serial.print(",Accx:");
+  Serial.print(AccX);
+  Serial.print(",Accy:");
+  Serial.print(AccY);
+  Serial.print(",Accz:");
+  Serial.println(AccZ);*/
+
   AccZ=AccZ-1; // calibration offset
-  AngleRoll=atan(AccY/sqrt(AccX*AccX+AccZ*AccZ))*1/(3.142/180);
-  AnglePitch=-atan(AccX/sqrt(AccY*AccY+AccZ*AccZ))*1/(3.142/180);
+  AngleRoll=atan2(-AccX, sqrt(AccY * AccY + AccZ * AccZ)) * (180 / M_PI); //Ao longo do eixo Y
+  AnglePitch=atan2(AccY, AccZ) * (180 / M_PI); //Ao longo do eixo X
 }
 
 void pid_equation(float Error, float P, float I, float D, float PrevError, float PrevIterm)

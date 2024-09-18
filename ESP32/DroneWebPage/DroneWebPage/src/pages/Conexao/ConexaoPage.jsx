@@ -12,27 +12,11 @@ const ConexaoPage = () => {
   const inputRef = createRef("192.168.1.46");
   const {setUrl, connectionStatus, sendMessage, ip} = useContext(ApiContext);
   const interval = useRef()
+  const connectionStatusRef = useRef();
 
   useEffect(() => {
     inputRef.current.value = ip;
   }, [ip])
-
-  useEffect(()=>{
-    //Get orientation
-    interval.current = setInterval(() => { 
-      //console.log("http://" + ip + ":80/getValues");
-      /*
-      fetch("http://" + ip + ":80/getValues")
-      .then(response => response.json())
-      .then(data => {
-        setOrientation(data);
-      })
-        */
-    }, 1000);
-
-  }, [])
-
-  
 
   function IpChange(value){
     //console.log(value);
@@ -41,6 +25,24 @@ const ConexaoPage = () => {
   const btnConectar = () =>{
     setUrl(inputRef.current.value);
   };
+
+  useEffect(() => {
+    connectionStatusRef.current = connectionStatus;
+    const interval = setInterval(()=>{
+      if (connectionStatusRef.current === 'Open'){
+        fetch("http://" + ip + ":80/getValues")
+        .then(response => response.json())
+        .then(data => {
+          setOrientation(data)
+        })
+      }
+    }, 1000)
+  
+    return () => {
+      clearInterval(interval)
+    }
+  }, [connectionStatus])
+  
 
   return (
     <div className='conexaopage-container'>

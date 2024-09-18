@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useContext, useEffect, useRef } from 'react'
 import './App.css'
 import NavBar from './components/NavBar/NavBar'
 import MenuLateral from './components/MenuLateral/MenuLateral'

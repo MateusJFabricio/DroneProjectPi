@@ -18,7 +18,8 @@ const GLPViewer = ({Yaw, Pitch, Roll}) => {
         <primitive
           object={gltf.scene}
           position={[0.4, -0.8, 0]}
-          rotation={[degToRad(Yaw), degToRad(180 + Roll), degToRad(Pitch)]}
+          //rotation={[degToRad(Yaw), degToRad(180 + Pitch), degToRad(Roll)]}
+          rotation={[degToRad(Roll), degToRad(180 + 0), degToRad(Pitch * -1)]}
           children-0-castShadow
         />
         <OrbitControls target={[0, 0, 0]} />

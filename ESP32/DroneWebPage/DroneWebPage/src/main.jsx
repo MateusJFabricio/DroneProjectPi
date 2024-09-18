@@ -14,16 +14,17 @@ import ConfigGeralPage from './pages/ConfigGeralPage/ConfigGeralPage.jsx';
 import ConfiPidPage from './pages/ConfigPIDPage/ConfigPidPage.jsx';
 import FlyPage from './pages/FlyPage/FlyPage.jsx';
 import { JoystickContextProvider } from './context/JoystickContext.jsx';
+import BackupPage from './pages/BackupPage/BackupPage.jsx';
 
 const router = createBrowserRouter([
   {
     path: "/",
     element: (
-      <ApiContextProvider>
-        <JoystickContextProvider>
+      <JoystickContextProvider>
+        <ApiContextProvider>
           <App/>
-        </JoystickContextProvider>
-      </ApiContextProvider>
+        </ApiContextProvider>
+      </JoystickContextProvider>
       ),
     children:[
       {
@@ -54,6 +55,12 @@ const router = createBrowserRouter([
         path: "/Controle",
         element: (
             <ControlePage/>
+        )
+      },
+      {
+        path: "/Backup",
+        element: (
+            <BackupPage/>
         )
       }
     ]
