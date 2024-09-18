@@ -20,6 +20,7 @@ const NavBar = () => {
 
   useEffect(() => {
     const interval = setInterval(()=>{
+      connectionStatusRef.current = connectionStatus;
       if (connectionStatusRef.current === 'Open'){
         fetch("http://" + ip + ":80/getDroneStatus", {
           method: "GET",
@@ -33,11 +34,12 @@ const NavBar = () => {
         })
       }
     }, 1000);
+    console.log("alskdaaaaaaaaa")
     
     return () =>{ 
       clearInterval(interval)
     }
-  }, [])
+  }, [connectionStatus])
   
 
   return (

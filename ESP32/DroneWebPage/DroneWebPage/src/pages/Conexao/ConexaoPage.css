@@ -35,8 +35,10 @@
 }
 
 .glp-viewer{
-    width: 600px;
+    display: flex;
+    flex-direction: row;
+    padding: 5px;
+    width: 100%;
     height: 600px;
-    border-style: solid;
-    border-color: rgb(116, 116, 116);
+    background-color: aliceblue;
 }

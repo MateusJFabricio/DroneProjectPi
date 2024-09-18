@@ -3,7 +3,6 @@
 #include <WebSocketsServer.h>
 #include <ArduinoJson.h>
 #include <AsyncTCP.h>
-//#include <ESPAsyncWebServer.h>
 #include <SPIFFS.h>
 
 #include <Wire.h>
@@ -173,19 +172,10 @@ void setup(void) {
     }
     Serial.println("Calibrando o MPU6050 finalizado");
   }
-  
 
   RateCalibrationRoll /= 4000;
   RateCalibrationPitch /= 4000;
   RateCalibrationYaw /= 4000;
-  //Gyro Calibrated Values
-  // Serial.print("Gyro Calib: ");
-  // Serial.print(RateCalibrationRoll);
-  // Serial.print("  ");
-  // Serial.print(RateCalibrationPitch);
-  // Serial.print("  ");
-  // Serial.print(RateCalibrationYaw);
-  // Serial.print(" -- ");
 
   LoopTimer = micros();
 
@@ -198,10 +188,12 @@ void setup(void) {
   server.on("/getValues", APIGetAngles);
   server.on("/getTrotleLimit", APIGetTrotleLimit);
   server.on("/getGainMotors", APIGetGainMotors);
+  server.on("/getDroneStatus", APIGetStatusDrone);
   server.on("/postGainMotors", HTTP_POST, APIPostGainMotors);
   server.on("/postGainMotors", HTTP_OPTIONS, APIOptions);
   server.on("/postTrotleLimit", HTTP_POST, APIPostTrotleLimit);
   server.begin();
+
   Serial.println("Antes das tasks");
   xTaskCreatePinnedToCore(
       TaskWebServer, /* Function to implement the task */
@@ -267,8 +259,6 @@ void loop(void) {
     mot3.write(0);
     mot4.write(0);
   }
-  
-  //delay(1);
 }
 
 int NormalizeMinMax(int val, int min, int max){
@@ -694,22 +684,19 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
         Control.TROTLE = 1000;
       }
     }
-
-    /*
-    Serial.print("ROLL: ");
-    Serial.print(Control.ROLL);
-    Serial.print(", PITCH: ");
-    Serial.print(Control.PITCH);
-    Serial.print(", YAW: ");
-    Serial.print(Control.YAW);
-    Serial.print(",TROTLE:");
-    Serial.println(Control.TROTLE);
-    Serial.print(", ENABLE: ");
-    Serial.print(Control.ENABLE);
-    Serial.print(", STOP: ");
-    Serial.println(Control.STOP);
-    */
   }
+}
+
+void APIGetStatusDrone(){
+  StaticJsonDocument<1024> jsonDocument;
+  char buffer[1024];
+
+  jsonDocument.clear(); // Clear json buffer
+  JsonObject status = jsonDocument.to<JsonObject>();
+  status["DRONE_ARMADO"] = Control.ENABLE;
+
+  serializeJson(jsonDocument, buffer);
+  server.send(200, "application/json", buffer);
 }
 
 void APIGetGainMotors(){
@@ -796,7 +783,6 @@ void APIPostGainMotors() {
   }
 }
 
-
 void APIPostTrotleLimit() {
   if (server.hasArg("plain")) {
     String json = server.arg("plain");  // Recebe o corpo da requisição
@@ -820,7 +806,6 @@ void APIPostTrotleLimit() {
     writeFile(SPIFFS, "/trotleLimit.txt", String(TrotleLimit).c_str());
 
     // Resposta ao cliente
-    //server.sendHeader("Access-Control-Allow-Origin", "*");
     server.send(200, "application/json", "{\"status\":\"sucesso\",\"msg\":\"JSON recebido com sucesso\"}");
   } else {
     server.send(400, "application/json", "{\"status\":\"erro\",\"msg\":\"Corpo vazio no POST\"}");

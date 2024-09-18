@@ -15,6 +15,7 @@ import ConfiPidPage from './pages/ConfigPIDPage/ConfigPidPage.jsx';
 import FlyPage from './pages/FlyPage/FlyPage.jsx';
 import { JoystickContextProvider } from './context/JoystickContext.jsx';
 import BackupPage from './pages/BackupPage/BackupPage.jsx';
+import MPU6050Page from './pages/MPU6050/MPU6050Page.jsx';
 
 const router = createBrowserRouter([
   {
@@ -61,6 +62,12 @@ const router = createBrowserRouter([
         path: "/Backup",
         element: (
             <BackupPage/>
+        )
+      },
+      {
+        path: "/Giroscopio",
+        element: (
+            <MPU6050Page/>
         )
       }
     ]
