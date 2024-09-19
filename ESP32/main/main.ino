@@ -7,7 +7,7 @@
 
 #include <Wire.h>
 #include <ESP32Servo.h> // Change to the standard Servo library for ESP32
-#include <DShotRMT.h>
+#include <SimpleKalmanFilter.h>
 
 uint16_t throttle = 0;
 
@@ -39,6 +39,23 @@ ControlType Control = {1500, 1500, 1500, 1000, false, false};
 volatile float RatePitch, RateRoll, RateYaw;
 volatile float RateCalibrationPitch, RateCalibrationRoll, RateCalibrationYaw;
 int RateCalibrationNumber;
+unsigned long lastSampleMicros = 0, lastPrintMillis = 0;
+float Gyroscope_x = 0, Gyroscope_y = 0, Gyroscope_z = 0;
+float GyroX_CalibFactor = 0, GyroY_CalibFactor = 0, GyroZ_CalibFactor = 0;
+
+/*SimpleKalmanFilter(e_mea, e_est, q);
+ e_mea: Measurement Uncertainty 
+ e_est: Estimation Uncertainty 
+ q: Process Noise
+ */
+SimpleKalmanFilter kalmanFilterGX(1, 1, 0.05);
+SimpleKalmanFilter kalmanFilterGY(1, 1, 0.05);
+SimpleKalmanFilter kalmanFilterGZ(1, 1, 0.05);
+SimpleKalmanFilter kalmanFilterAX(1, 1, 0.05);
+SimpleKalmanFilter kalmanFilterAY(1, 1, 0.05);
+SimpleKalmanFilter kalmanFilterAZ(1, 1, 0.05);
+
+#define INTERVAL_MS_PRINT 1000
 
 float GainMotor1 = 1.0;
 float GainMotor2 = 1.0;
@@ -133,13 +150,35 @@ void setup(void) {
 
   //Configura MPU6050
   Serial.println("Configurano o MPU6050");
+
   Wire.setClock(400000);
   Wire.begin();
   delay(250);
   Wire.beginTransmission(0x68);
-  Wire.write(0x6B);
-  Wire.write(0x00);
+  Wire.write(0x6B); //PWR_MGMT_1
+  Wire.write(0x00); //Internal 8MHz oscillator 
   Wire.endTransmission();
+
+  Wire.beginTransmission(0x68);
+  Wire.write(0x19); //Register 15: SRD
+  Wire.write(0x01); //1
+  Wire.endTransmission();
+  
+  Wire.beginTransmission(0x68);
+  Wire.write(0x1A); //CONFIG
+  Wire.write(0x01); //DLPF_CFG Código 5
+  Wire.endTransmission();
+
+  Wire.beginTransmission(0x68);
+  Wire.write(0x1B); // GYRO_CONFIG
+  Wire.write(0x10); // +-1000 °/s
+  Wire.endTransmission();
+
+  Wire.beginTransmission(0x68);
+  Wire.write(0x1C); //ACCEL_CONFIG
+  Wire.write(0x00); // +-2g
+  Wire.endTransmission();
+
   Serial.println("Finalizado a configuracao do MPU6050");
 
   //Configura Motor
@@ -189,6 +228,7 @@ void setup(void) {
   server.on("/getTrotleLimit", APIGetTrotleLimit);
   server.on("/getGainMotors", APIGetGainMotors);
   server.on("/getDroneStatus", APIGetStatusDrone);
+  server.on("/postAnglesCalibration", HTTP_POST, APIPostAnglesCalibration);
   server.on("/postGainMotors", HTTP_POST, APIPostGainMotors);
   server.on("/postGainMotors", HTTP_OPTIONS, APIOptions);
   server.on("/postTrotleLimit", HTTP_POST, APIPostTrotleLimit);
@@ -220,10 +260,20 @@ void setup(void) {
 
   TrotleLimit = readFile(SPIFFS, "/trotleLimit.txt").toFloat();
 
+  GainMotor1 = readFile(SPIFFS, "/motorGainM1.txt").toFloat();
+
+  //GyroX_CalibFactor = readFile(SPIFFS, "/GyroX_CalibFactor.txt").toFloat();
+  //GyroY_CalibFactor = readFile(SPIFFS, "/GyroY_CalibFactor.txt").toFloat();
+  //GyroZ_CalibFactor = readFile(SPIFFS, "/GyroZ_CalibFactor.txt").toFloat();
+
   Serial.println("Fim do setup");
 }
 
 void loop(void) {
+
+  gyro_signals();
+
+  return;
   Ping(0, &timeSpanLoop);
   int limite = trunc(500 * TrotleLimit) + 1500;
 
@@ -687,7 +737,18 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
   }
 }
 
+void APIPostAnglesCalibration(){
+  if (!Control.ENABLE){
+    CalibrarAngulos();
+    // Resposta ao cliente
+    server.send(200, "application/json", "{\"status\":\"sucesso\",\"msg\":\"Calibracao concluida\"}");
+  }else{
+    server.send(400, "application/json", "{\"status\":\"erro\",\"msg\":\"O drone deve estar desarmado\"}");
+  }
+}
+
 void APIGetStatusDrone(){
+  
   StaticJsonDocument<1024> jsonDocument;
   char buffer[1024];
 
@@ -697,6 +758,7 @@ void APIGetStatusDrone(){
 
   serializeJson(jsonDocument, buffer);
   server.send(200, "application/json", buffer);
+  
 }
 
 void APIGetGainMotors(){
@@ -812,51 +874,171 @@ void APIPostTrotleLimit() {
   }
 }
 
-void gyro_signals(void)
+void gyro_signals()
 {
+  unsigned long sampleMicros = (lastSampleMicros > 0) ? micros() - lastSampleMicros : 0;
+  lastSampleMicros = micros();
+
+  //Request Acc data
   Wire.beginTransmission(0x68);
-  Wire.write(0x1A);
-  Wire.write(0x05);
-  Wire.endTransmission();
-  Wire.beginTransmission(0x68);
-  Wire.write(0x1C);
-  Wire.write(0x10);
-  Wire.endTransmission();
-  Wire.beginTransmission(0x68);
-  Wire.write(0x3B);
+  Wire.write(0x3B); //Request Data
   Wire.endTransmission(); 
   Wire.requestFrom(0x68,6);
+
   int16_t AccXLSB = Wire.read() << 8 | Wire.read();
   int16_t AccYLSB = Wire.read() << 8 | Wire.read();
   int16_t AccZLSB = Wire.read() << 8 | Wire.read();
-  Wire.beginTransmission(0x68);
-  Wire.write(0x1B); 
-  Wire.write(0x8);
-  Wire.endTransmission();                                                   
+  
+  //Request Gyro data
   Wire.beginTransmission(0x68);
   Wire.write(0x43);
   Wire.endTransmission();
   Wire.requestFrom(0x68,6);
+
   int16_t GyroX=Wire.read()<<8 | Wire.read();
   int16_t GyroY=Wire.read()<<8 | Wire.read();
   int16_t GyroZ=Wire.read()<<8 | Wire.read();
-  RateRoll=(float)GyroZ/65.5;
-  RatePitch=(float)GyroX/65.5;
-  RateYaw=(float)GyroY/65.5;
-  AccX=(float)AccXLSB/4096; //Aponta pro lado
-  AccY=(float)AccYLSB/4096; //Aponta pra frente
-  AccZ=(float)AccZLSB/4096;
-  
-  /*Serial.print(",Accx:");
-  Serial.print(AccX);
-  Serial.print(",Accy:");
-  Serial.print(AccY);
-  Serial.print(",Accz:");
-  Serial.println(AccZ);*/
 
-  AccZ=AccZ-1; // calibration offset
-  AngleRoll=atan2(-AccX, sqrt(AccY * AccY + AccZ * AccZ)) * (180 / M_PI); //Ao longo do eixo Y
-  AnglePitch=atan2(AccY, AccZ) * (180 / M_PI); //Ao longo do eixo X
+  //Sensibilide do gyro
+  // ± 250 °/s : 131 LSB/°/s  
+  // ± 500 °/s : 65.5 LSB/°/s  
+  // ± 1000 °/s: 32.8 LSB/°/s
+  // ± 2000 °/s: 16.4 LSB/°/s 
+
+  RatePitch=((float)GyroX/32.8);
+  RateRoll=((float)GyroY/32.8);
+  RateYaw=((float)GyroZ/32.8);
+
+  //Sensibilide do acc
+  // +- 2g : 16384 LSB/g
+  // +- 4g : 8192 LSB/g
+  // +- 8g : 4096 LSB/g
+  // +- 16g: 2048 LSB/g
+
+  AccX=(float)AccXLSB / 16384; 
+  AccY=(float)AccYLSB / 16384;
+  AccZ=(float)AccZLSB / 16384;
+
+  //Offset
+  AccX-=0.03;
+  AccY+= 0.02;
+  AccZ-= 0.05;
+
+  AccX = AccX * 9.80665;
+  AccY = AccY * 9.80665;
+  AccZ = AccZ * 9.80665;
+
+  float accelerometer_x=atan(-1 * AccX / sqrt(sq(AccY) + sq(AccZ))); //Ao longo do eixo Y
+  float accelerometer_y=atan(AccY / sqrt(sq(AccX) + sq(AccZ))); //Ao longo do eixo X
+  float accelerometer_z = atan2(accelerometer_y, accelerometer_x);
+
+  float kGX = kalmanFilterGX.updateEstimate(RatePitch);
+  float kGY = kalmanFilterGY.updateEstimate(RateRoll);
+  float kGZ = kalmanFilterGY.updateEstimate(RateYaw);
+  float kAX = kalmanFilterAX.updateEstimate(accelerometer_x);
+  float kAY = kalmanFilterAY.updateEstimate(accelerometer_y);
+  float kAZ = kalmanFilterAZ.updateEstimate(accelerometer_z);
+
+  Gyroscope_x += (kGX - GyroX_CalibFactor) * sampleMicros / 1000000;
+
+  Gyroscope_y += (kGY - GyroY_CalibFactor) * sampleMicros / 1000000;
+
+  Gyroscope_z += (kGZ - GyroZ_CalibFactor) * sampleMicros / 1000000;
+
+  AnglePitch = 0.98 * (AnglePitch + degrees(Gyroscope_x)) + 0.02 * degrees(kAX);
+  AngleRoll = 0.98 * (AngleRoll + degrees(Gyroscope_y)) + 0.02 * degrees(kAY);
+
+
+  Serial.print(",GyroX:");
+  Serial.print(kGX);
+  Serial.print(",GyroY:");
+  Serial.print(kGY);
+  Serial.print(",GyroZ:");
+  Serial.print(kGZ);
+  Serial.print(",AccX:");
+  Serial.print(kAX);
+  Serial.print(",AccY:");
+  Serial.print(kAY);
+  Serial.print(",AccZ:");
+  Serial.print(kAZ);
+  Serial.print(",MenosCem:");
+  Serial.print(-50);
+  Serial.print(",Zero:");
+  Serial.print(0);
+  Serial.print(",Cem:");
+  Serial.println(50);
+
+  /*
+  Serial.print(",Kalman:");
+  Serial.print(kalman);
+  Serial.print(",accelerometer_x:");
+  Serial.print(degrees(accelerometer_x));
+  Serial.print(",AnglePitch:");
+  Serial.println(degrees(gyroscope_y));
+  */
+
+}
+
+void CalibrarAngulos(){
+  float lastValueX = 0, lastValueY = 0, lastValueZ = 0;
+  Serial.println("Iniciando a calibracao do MPU6050");
+
+  //Zera os angulos
+  Gyroscope_x = 0;
+  Gyroscope_y = 0;
+  Gyroscope_z = 0;
+
+  GyroX_CalibFactor = 0;
+  GyroY_CalibFactor = 0;
+  GyroZ_CalibFactor = 0;
+
+  //Salva a calibracao
+  writeFile(SPIFFS, "/GyroX_CalibFactor.txt", String(GyroX_CalibFactor).c_str());
+  writeFile(SPIFFS, "/GyroY_CalibFactor.txt", String(GyroY_CalibFactor).c_str());
+  writeFile(SPIFFS, "/GyroZ_CalibFactor.txt", String(GyroZ_CalibFactor).c_str());
+  
+  float calibX = 0, calibY = 0, calibZ = 0;
+
+  if (true){
+    //Executa a calibracao
+    for (int i = 0; i < 500; i++) {
+      gyro_signals();
+
+      calibX += RatePitch;
+      calibY += RateRoll;
+      calibZ += RateYaw;
+      
+      delay(1);
+    }
+  }
+
+  calibX /= 500;
+  calibY /= 500;
+  calibZ /= 500;
+
+  
+  Serial.print(",CalibGyroX:");
+  Serial.print(calibX);
+  Serial.print(",CalibGyroY:");
+  Serial.print(calibY);
+  Serial.print(",CalibGyroZ:");
+  Serial.println(calibZ);
+
+  //Salva a calibracao
+  writeFile(SPIFFS, "/GyroX_CalibFactor.txt", String(calibX).c_str());
+  writeFile(SPIFFS, "/GyroY_CalibFactor.txt", String(calibY).c_str());
+  writeFile(SPIFFS, "/GyroZ_CalibFactor.txt", String(calibZ).c_str());
+
+  //Zera os angulos
+  Gyroscope_x = 0;
+  Gyroscope_y = 0;
+  Gyroscope_z = 0;
+
+  GyroX_CalibFactor = calibX;
+  GyroY_CalibFactor = calibY;
+  GyroZ_CalibFactor = calibZ;
+
+  Serial.println("Finalizado a calibracao do MPU6050");
 }
 
 void pid_equation(float Error, float P, float I, float D, float PrevError, float PrevIterm)
