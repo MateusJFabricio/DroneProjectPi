@@ -63,9 +63,9 @@ export const ApiContextProvider = ({children})=>{
       }
       console.log("YAW: " + enableDrone.current)
       return {
-        YAW: joystickRef.current.axes[2],
+        YAW: joystickRef.current.axes[0],
         PITCH: joystickRef.current.axes[3] * -1,
-        ROLL: joystickRef.current.axes[0],
+        ROLL: joystickRef.current.axes[2],
         TROTLE: joystickRef.current.axes[1] * -1,
         ENABLE: enableDrone.current,
         STOP: stopDrone.current

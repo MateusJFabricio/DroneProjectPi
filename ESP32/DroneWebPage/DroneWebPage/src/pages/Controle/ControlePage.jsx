@@ -18,9 +18,9 @@ const ControlePage = () => {
 
   useEffect(()=>{
     if (joystick !== null){
-      setYaw( map_range(joystick.axes[2], -1, 1, 1000, 2000));
+      setYaw( map_range(joystick.axes[0], -1, 1, 1000, 2000));
       setPitch( map_range(joystick.axes[3] * -1, -1, 1, 1000, 2000));
-      setRoll( map_range(joystick.axes[0], -1, 1, 1000, 2000));
+      setRoll( map_range(joystick.axes[2], -1, 1, 1000, 2000));
       setTrotle( map_range(joystick.axes[1] * -1, -1, 1, 1000, 2000));
     }
 }, [joystick])
@@ -39,9 +39,9 @@ const ControlePage = () => {
         </div>
       </div>
       <div id='controlepage-joystickbars'>
-          <JoystickBar title={"YAW"} value={yaw} min={1000} max={2000} color={"red"}/>
+          <JoystickBar title={"ROLL"} value={roll} min={1000} max={2000} color={"red"}/>
           <JoystickBar title={"PITCH"} value={pitch} min={1000} max={2000} color={"green"}/>
-          <JoystickBar title={"ROLL"} value={roll} min={1000} max={2000} color={"yellow"}/>
+          <JoystickBar title={"YAW"} value={yaw} min={1000} max={2000} color={"yellow"}/>
           <JoystickBar title={"TROTTLE"} value={trotle} min={1000} max={2000} color={"blue"}/>
       </div>
     </div>

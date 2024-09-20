@@ -30,18 +30,23 @@ const ConexaoPage = () => {
 
   useEffect(() => {
     connectionStatusRef.current = connectionStatus;
-    const interval = setInterval(()=>{
-      if (connectionStatusRef.current === 'Open'){
-        fetch("http://" + ip + ":80/getValues")
-        .then(response => response.json())
-        .then(data => {
-          setOrientation(data)
-        })
-      }
-    }, 1000)
+    let interval = null
+    if(connectionStatus === 'Open'){
+      interval = setInterval(()=>{
+        if (connectionStatusRef.current === 'Open'){
+          fetch("http://" + ip + ":80/getValues")
+          .then(response => response.json())
+          .then(data => {
+            setOrientation(data)
+          })
+        }
+      }, 100)
+    }
   
     return () => {
-      clearInterval(interval)
+      if (interval !== null){
+        clearInterval(interval)
+      }
     }
   }, [connectionStatus])
   
@@ -57,11 +62,12 @@ const ConexaoPage = () => {
       <br/>
       <br/>
       <div className='glp-viewer'>
-        <GLPViewer Pitch={orientation.Pitch} Yaw={orientation.Yaw} Roll={orientation.Roll}/>
+        <GLPViewer Pitch={orientation.Pitch} Yaw={orientation.Yaw} Roll={orientation.Roll} step={0.1}/>
         <div style={{width: "20%", height: "100%", padding: "5px", backgroundColor: "rgb(101, 132, 158)"}}>
           <h3>Orientação:</h3>
           <p>Pitch: {orientation.Pitch}</p>
           <p>Roll: {orientation.Roll}</p>
+          <p>Yaw: {orientation.Yaw}</p>
           <h3>Aceleração:</h3>
           <p>X: {orientation.AccX}</p>
           <p>Y: {orientation.AccY}</p>
