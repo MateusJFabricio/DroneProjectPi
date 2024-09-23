@@ -34,7 +34,6 @@ const NavBar = () => {
         })
       }
     }, 1000);
-    console.log("alskdaaaaaaaaa")
     
     return () =>{ 
       clearInterval(interval)
@@ -50,7 +49,7 @@ const NavBar = () => {
       </div>
       <div className='nav-status'>
         <div className={joystickConectado ? 'nav-status-conexao conectado' : 'nav-status-conexao desconectado'}>
-            <span>JOYSTCIK</span>
+            <span>JOYSTICK</span>
             <span>{joystickConectado ? "CONECTADO" : "DESCONECTADO"}</span>
         </div>
         <div className={connectionStatus === "Open" ? 'nav-status-conexao conectado' : 'nav-status-conexao desconectado'}>

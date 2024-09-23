@@ -1,21 +1,35 @@
 .flypage-container{
-    height: 80%;
+    height: 100%;
     width: 80%;
 }
 
 .flypage-map-container{
-    width: 600px;
-    height: 600px;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
 }
 
 #map-title{
     display: flex;
     justify-content: center;
     align-items: center;
+    width: 100%;
 }
 
-#map-map{
+.map-map{
+    display: flex;
     background-color: rgba(30, 43, 42, 0.377);
     width: 100%;
-    height: 92%;
+    height: 400px;
+}
+
+.glp-viewer{
+    display: flex;
+    flex-direction: row;
+    padding: 5px;
+    width: 100%;
+    height: 400px;
+    background-color: aliceblue;
 }

@@ -1,8 +1,9 @@
-import React, {useContext, useEffect, useState} from 'react'
+import React, {useContext, useEffect, useState } from 'react'
 import './ControlePage.css'
 import PS4Joystick from '../../components/Ps4Joystick/PS4Joystick'
 import JoystickBar from '../../components/JoystickBar/JoystickBar'
 import {JoystickContext} from '../../context/JoystickContext'
+
 
 const ControlePage = () => {
 
@@ -44,6 +45,7 @@ const ControlePage = () => {
           <JoystickBar title={"YAW"} value={yaw} min={1000} max={2000} color={"yellow"}/>
           <JoystickBar title={"TROTTLE"} value={trotle} min={1000} max={2000} color={"blue"}/>
       </div>
+      
     </div>
   )
 }

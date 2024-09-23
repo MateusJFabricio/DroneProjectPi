@@ -14,19 +14,19 @@ export const ApiContextProvider = ({children})=>{
     const stopDrone = useRef(false);
 
     const { sendMessage, lastMessage, readyState } = useWebSocket(socketUrl, {
+        onError: (event)=>{
+          console.log(event)
+        },
         shouldReconnect: (closeEvent) => {
+          console.log('ShouldReconnect:')
+          console.log(closeEvent)
           return true;
         },
-        heartbeat: {
-            message: 'ping',
-            returnMessage: 'pong',
-            timeout: 3000, // 1 minute, if no response is received, the connection will be closed
-            interval: 1000, // every 25 seconds, a ping message will be sent
-          },
+        heartbeat: true,
         reconnectAttempts: 2,
         reconnectInterval: 1000,
       });
-
+    
     const connectionStatus = {
         [ReadyState.CONNECTING]: 'Connecting',
         [ReadyState.OPEN]: 'Open',
@@ -36,8 +36,9 @@ export const ApiContextProvider = ({children})=>{
       }[readyState];
 
     const setUrl = (ip)=>{
-        setSocketUrl("ws://"+ ip + ":81");
-        setIp(ip);
+      console.log(ip)
+      setSocketUrl("ws://"+ ip + ":81");
+      setIp(ip);
     }
     
     const controlData = ()=>{
@@ -89,13 +90,24 @@ export const ApiContextProvider = ({children})=>{
     }, [])
 
     useEffect(() => {
+      const interval = setInterval(()=>{
+        if (connectionStatusRef.current === 'Open'){
+          sendMessage(JSON.stringify({lifebit: true}))
+        }
+      }, 1000);
+      
+      return () =>{ 
+        clearInterval(interval)
+      }
+    }, [])  
+
+    useEffect(() => {
       joystickRef.current = joystick;
     }, [joystick])
 
     useEffect(() => {
       connectionStatusRef.current = connectionStatus;
     }, [connectionStatus])
-    
 
     return(
         <ApiContext.Provider value={{setUrl, connectionStatus, ip}}>

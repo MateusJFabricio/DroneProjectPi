@@ -8,6 +8,7 @@
 #include <Wire.h>
 #include <ESP32Servo.h> // Change to the standard Servo library for ESP32
 #include <SimpleKalmanFilter.h>
+#include <ESPmDNS.h>
 
 uint16_t throttle = 0;
 
@@ -20,7 +21,12 @@ const char* password = "robosoft";
 unsigned long timeSpanLoop;
 unsigned long timeSpanTaskAPI;
 unsigned long timeSpanTaskSocket;
-bool pingEnable = false;
+unsigned long lastPingTime = millis();
+bool taskPingEnable = false;
+int BeepCode = 0;
+
+//Parameters
+StaticJsonDocument<2000> Parameters;
 
 const char* PARAM_TIME_CYCLE = "tc";  //Computation time cycle
 
@@ -122,6 +128,7 @@ float DAngleRoll=0; float DAnglePitch=DAngleRoll;
 volatile float MotorInput1, MotorInput2, MotorInput3, MotorInput4;
 
 void setup(void) {
+  
   timeSpanLoop = micros();
   timeSpanTaskAPI = micros();
   timeSpanTaskSocket = micros();
@@ -140,15 +147,24 @@ void setup(void) {
     }
   #endif
 
+  ReadParameters();
+
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
-  if (WiFi.waitForConnectResult() != WL_CONNECTED) {
+  while(WiFi.waitForConnectResult() != WL_CONNECTED) {
     Serial.println("WiFi Failed!");
-    return;
+    delay(1000);
   }
   Serial.println();
   Serial.print("IP Address: ");
   Serial.println(WiFi.localIP());
+
+  // Inicia o mDNS e registra o nome do host (por exemplo, "drone")
+  if (!MDNS.begin("drone")) {
+    Serial.println
+    ("Error starting mDNS");
+    return;
+  }
 
   //Configura MPU6050
   Serial.println("Configurano o MPU6050");
@@ -200,20 +216,6 @@ void setup(void) {
   //Beep de inicializacao
   pinMode(15, OUTPUT);
 
-  //Calibra o MPU6050
-  if(false){
-    Serial.println("Calibrando o MPU6050");
-    for (RateCalibrationNumber = 0; RateCalibrationNumber < 4000; RateCalibrationNumber++)
-    {
-      Gyro_signals();
-      RateCalibrationRoll += RateRoll;
-      RateCalibrationPitch += RatePitch;
-      RateCalibrationYaw += RateYaw;
-      //delay(1);
-    }
-    Serial.println("Calibrando o MPU6050 finalizado");
-  }
-
   RateCalibrationRoll /= 4000;
   RateCalibrationPitch /= 4000;
   RateCalibrationYaw /= 4000;
@@ -227,11 +229,13 @@ void setup(void) {
 
   server.enableCORS();
   server.on("/getValues", APIGetAngles);
+  server.on("/getBackup", APIGetBackup);
   server.on("/getTrotleLimit", APIGetTrotleLimit);
   server.on("/getGainMotors", APIGetGainMotors);
   server.on("/getDroneStatus", APIGetStatusDrone);
   server.on("/postAnglesCalibration", HTTP_POST, APIPostAnglesCalibration);
   server.on("/postGainMotors", HTTP_POST, APIPostGainMotors);
+  server.on("/postRestoreParameters", HTTP_POST, APIPostRestoreParameters);
   server.on("/postGainMotors", HTTP_OPTIONS, APIOptions);
   server.on("/postTrotleLimit", HTTP_POST, APIPostTrotleLimit);
   server.begin();
@@ -254,6 +258,14 @@ void setup(void) {
       1,  /* Priority of the task */
       NULL,  /* Task handle. */
       1);
+  xTaskCreatePinnedToCore(
+      TaskBeep, /* Function to implement the task */
+      "TaskBeep", /* Name of the task */
+      1000,  /* Stack size in words */
+      NULL,  /* Task input parameter */
+      1,  /* Priority of the task */
+      NULL,  /* Task handle. */
+      1);
 
   GainMotor1 = readFile(SPIFFS, "/motorGainM1.txt").toFloat();
   GainMotor2 = readFile(SPIFFS, "/motorGainM2.txt").toFloat();
@@ -261,8 +273,6 @@ void setup(void) {
   GainMotor4 = readFile(SPIFFS, "/motorGainM4.txt").toFloat();
 
   TrotleLimit = readFile(SPIFFS, "/trotleLimit.txt").toFloat();
-
-  GainMotor1 = readFile(SPIFFS, "/motorGainM1.txt").toFloat();
 
   GyroX_CalibFactor = readFile(SPIFFS, "/GyroX_CalibFactor.txt").toFloat();
   GyroY_CalibFactor = readFile(SPIFFS, "/GyroY_CalibFactor.txt").toFloat();
@@ -275,53 +285,22 @@ void setup(void) {
 }
 
 void loop(void) {
-
-  AngleMode();
-
+  Gyro_signals();
+  delay(10);
   return;
-  Ping(0, &timeSpanLoop);
-  int limite = trunc(500 * TrotleLimit) + 1500;
+  AngleMode();
+}
 
-  int m1 = trunc(Control.TROTLE * GainMotor1);
-  m1 = NormalizeMinMax(m1 > limite ? limite : m1, 1500, 2000);
-
-  int m2 = trunc(Control.TROTLE * GainMotor2);
-  m2 = NormalizeMinMax(m2 > limite ? limite : m2, 1500, 2000);
-
-  int m3 = trunc(Control.TROTLE * GainMotor3);
-  m3 = NormalizeMinMax(m3 > limite ? limite : m3, 1500, 2000);
-
-  int m4 = trunc(Control.TROTLE * GainMotor4);
-  m4 = NormalizeMinMax(m4 > limite ? limite : m4, 1500, 2000);
-  
-  Serial.print(",M1:"),
-  Serial.print(m1);
-  Serial.print(",M2:"),
-  Serial.print(m2);
-  Serial.print(",M3:"),
-  Serial.print(m3);
-  Serial.print(",M4:"),
-  Serial.println(m4);
-
-  if (Control.ENABLE){
-    mot1.write(map(m1, 1500, 2000, 0, 180));
-    mot2.write(map(m2, 1500, 2000, 0, 180));
-    mot3.write(map(m3, 1500, 2000, 0, 180));
-    mot4.write(map(m4, 1500, 2000, 0, 180));
-  }else{
-    mot1.write(0);
-    mot2.write(0);
-    mot3.write(0);
-    mot4.write(0);
-  }
+bool isConnected(){
+  return (millis() - lastPingTime) < 2000;
 }
 
 int NormalizeMinMax(int val, int min, int max){
   return val > max ? max : (val < min ? min : val);
 }
 
-void Ping(int id, unsigned long *timeSpan){
-  if(pingEnable){
+void TaskPing(int id, unsigned long *timeSpan){
+  if(taskPingEnable){
     String p = ",TimeSpan(" + String(id) + "):";
     Serial.print(p);
     Serial.println(micros() - *timeSpan);
@@ -333,7 +312,12 @@ void TaskWebServer( void * parameter) {
     //Roda a API
     server.handleClient();
 
-    Ping(1, &timeSpanTaskSocket);
+    if (!isConnected()){
+      BeepCode = 2;
+      ReturnHomeMode();
+    }else{
+      BeepCode = 0;
+    }
   }
 }
 
@@ -342,20 +326,32 @@ void TaskWebServerAPI( void * parameter) {
     // Mantém o WebSocket ativo
     webSocket.loop();
 
-    Ping(2, &timeSpanTaskAPI);
+    TaskPing(2, &timeSpanTaskAPI);
   }
 }
-
+void TaskBeep(void * parameter){
+  while(true){
+    Beep(BeepCode);
+  }
+}
 void Beep(int code){
   int pinBuzzer = 15;
   int led_time=100;
   switch(code){
+    case 0:
+      break;
     case 1: //Inicializacao
       tone(pinBuzzer, 2273, 100);
       delay(50);
       tone(pinBuzzer, 2273, 100);
       delay(50);
       tone(pinBuzzer, 2273, 100);
+      break;
+    case 2: //Sem conexao
+      tone(pinBuzzer, 2273, 100);
+      delay(100);
+      tone(pinBuzzer, 2273, 100);
+      delay(1000);
       break;
     default: //ERRO
       tone(pinBuzzer, 2273, 100);
@@ -454,6 +450,17 @@ void AngleMode(){
   Serial.print(DesiredAngleRoll);
   Serial.print(",DesiredRateYaw:");
   Serial.println(DesiredRateYaw);
+}
+
+void ReturnHomeMode(){
+  Control.YAW = 1500;
+  Control.PITCH = 1500;
+  Control.ROLL = 1500;
+  Control.TROTLE -= 1;
+  
+  if (Control.TROTLE < 1000){
+    Control.TROTLE = 1000;
+  }
 }
 
 void FlyController(){
@@ -724,6 +731,9 @@ void neutralPositionAdjustment()
 }
 
 void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length) {
+  if(type != WStype_DISCONNECTED || type != WStype_ERROR){
+    lastPingTime = millis();
+  }
   
   if(type == WStype_TEXT) {
     // Recebe a mensagem do cliente
@@ -887,7 +897,12 @@ void APIGetTrotleLimit(){
   serializeJson(jsonDocument, buffer);
   server.send(200, "application/json", buffer);
 }
+void APIGetBackup(){
+  char buffer[2000];
 
+  serializeJson(Parameters, buffer);
+  server.send(200, "application/json", buffer);
+}
 void APIGetAngles(){
   StaticJsonDocument<1024> jsonDocument;
   char buffer[1024];
@@ -953,6 +968,31 @@ void APIPostGainMotors() {
   }
 }
 
+void APIPostRestoreParameters(){
+  if (server.hasArg("plain")) {
+    String json = server.arg("plain");  // Recebe o corpo da requisição
+
+    // Cria um objeto JSON para armazenar os dados recebidos
+    StaticJsonDocument<2000> doc;
+
+    // Deserializa o JSON recebido
+    DeserializationError error = deserializeJson(doc, json);
+
+    if (error) {
+      Serial.print("Erro ao parsear JSON: ");
+      Serial.println(error.c_str());
+      server.send(400, "application/json", "{\"status\":\"erro\",\"msg\":\"JSON inválido\"}");
+      return;
+    }
+
+    writeFile(SPIFFS, "/Parameters.json", String(json).c_str());
+
+    // Resposta ao cliente
+    server.send(200, "application/json", "{\"status\":\"sucesso\",\"msg\":\"JSON recebido com sucesso\"}");
+  } else {
+    server.send(400, "application/json", "{\"status\":\"erro\",\"msg\":\"Corpo vazio no POST\"}");
+  }
+}
 void APIPostTrotleLimit() {
   if (server.hasArg("plain")) {
     String json = server.arg("plain");  // Recebe o corpo da requisição
@@ -1235,29 +1275,42 @@ void writeFile(fs::FS &fs, const char * path, const char * message){
   file.close();
 }
 
-// Replaces placeholder with stored values
-String processor(const String& var){
-  //Serial.println(var);
-  if(var == "pGain"){
-      return readFile(SPIFFS, "/pGain.txt");
-  }
-  else if(var == "iGain"){
-      return readFile(SPIFFS, "/iGain.txt");
-  }
-  else if(var == "dGain"){
-      return readFile(SPIFFS, "/dGain.txt");
-  }
-  else if(var == "pYaw"){
-      return readFile(SPIFFS, "/pYaw.txt");
-  }
-  else if(var == "dYaw"){
-      return readFile(SPIFFS, "/dYaw.txt");
-  }
-  else if(var == "iYaw"){
-      return readFile(SPIFFS, "/iYaw.txt");
-  }
-  else if(var == "tc"){
-      return readFile(SPIFFS, "/tc.txt");
-  }
+void ReadParameters(){
+  Serial.println("Reading Parameters");
+  String data = readFile(SPIFFS, "/Parameters.json");
 
+  if(data == ""){
+    Serial.println("Parameters not found!");
+
+    Parameters["motorGainM1"] = 1.0;
+    Parameters["motorGainM2"] = 1.0;
+    Parameters["motorGainM3"] = 1.0;
+    Parameters["motorGainM4"] = 1.0;
+    Parameters["trotleLimit"] = 1.0;
+
+    Parameters["GyroX_CalibFactor"] = 1.0;
+    Parameters["GyroY_CalibFactor"] = 1.0;
+    Parameters["GyroZ_CalibFactor"] = 1.0;
+    Parameters["AccX_CalibFactor"] = 1.0;
+    Parameters["AccY_CalibFactor"] = 1.0;
+    Parameters["AccZ_CalibFactor"] = 1.0;
+
+    Parameters["pGain"] = 1.0;
+    Parameters["iGain"] = 1.0;
+    Parameters["dGain"] = 1.0;
+
+    Parameters["pidTimer"] = 1.0;
+
+    char buffer[2000];
+    serializeJson(Parameters, buffer);
+    writeFile(SPIFFS, "/Parameters.json", buffer);
+  }else{
+    DeserializationError error = deserializeJson(Parameters, data);
+
+    if (error){
+      Serial.println("Erro ao ler os Parametros do Drone");
+    }else{
+      Serial.println("Parameters read with success");
+    }
+  }
 }
