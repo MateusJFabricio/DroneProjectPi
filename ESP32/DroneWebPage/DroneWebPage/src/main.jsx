@@ -29,6 +29,10 @@ const router = createBrowserRouter([
       ),
     children:[
       {
+        path: "/",
+        element: <FlyPage/>
+      },
+      {
         path: "/Fly",
         element: <FlyPage/>
       },

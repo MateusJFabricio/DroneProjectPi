@@ -56,7 +56,6 @@ const NavBar = () => {
     }
   }, [connectionStatus])
   
-
   return (
     <div className="nav-bar">
       <div className="logo">
