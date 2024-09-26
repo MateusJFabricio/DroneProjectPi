@@ -9,6 +9,7 @@
 #include <ESP32Servo.h> // Change to the standard Servo library for ESP32
 #include <SimpleKalmanFilter.h>
 #include <ESPmDNS.h>
+#include <PID_v1.h>
 
 bool ESC_CALIB_ENABLED = false;
 
@@ -166,6 +167,24 @@ KalmanVarType KalmanVarRoll = {
     {{0, 0}, {0, 0}}
   };
 
+/***** PID *****/
+struct PIDType {
+  double kP;
+  double kI;
+  double kD;
+  double Setpoint;
+  double Input;
+  double Output;
+  bool Inverted;
+};
+
+PIDType PitchPIDVars = {1, 1, 1, 1, 1, 1, true};
+PIDType RollPIDVars = {1, 1, 1, 1, 1, 1, true};
+PIDType YawPIDVars = {1, 1, 1, 1, 1, 1, true};
+PIDType TrottlePIDVars = {1, 1, 1, 1, 1, 1, true};
+
+PID PitchPID(&PitchPIDVars.Input, &PitchPIDVars.Output, &PitchPIDVars.Setpoint, PitchPIDVars.kP, PitchPIDVars.kI, PitchPIDVars.kD, PitchPIDVars.Inverted);
+
 void setup(void) {
   timeSpanLoop = micros();
   timeSpanTaskAPI = micros();
@@ -285,7 +304,32 @@ void setup(void) {
   if(Parameters.containsKey("Roll_R_measure")){
     KalmanVarRoll.R_measure = Parameters["Roll_R_measure"];
   }
-  
+  if(Parameters.containsKey("Pitch_kP")){
+    PitchPIDVars.kP = Parameters["Pitch_kP"];
+  }
+  if(Parameters.containsKey("Pitch_kI")){
+    PitchPIDVars.kI = Parameters["Pitch_kI"];
+  }
+  if(Parameters.containsKey("Pitch_kD")){
+    PitchPIDVars.kD = Parameters["Pitch_kD"];
+  }
+  /*
+  Parameters["Pitch_kI"] = doc["Pitch_kI"];
+  Parameters["Pitch_kD"] = doc["Pitch_kD"];
+
+  Parameters["Roll_kP"] = doc["Roll_kP"];
+  Parameters["Roll_kI"] = doc["Roll_kI"];
+  Parameters["Roll_kD"] = doc["Roll_kD"];
+
+  Parameters["Yall_kP"] = doc["Yall_kP"];
+  Parameters["Yall_kI"] = doc["Yall_kI"];
+  Parameters["Yall_kD"] = doc["Yall_kD"];
+
+  Parameters["Throttle_kP"] = doc["Throttle_kP"];
+  Parameters["Throttle_kI"] = doc["Throttle_kI"];
+  Parameters["Throttle_kD"] = doc["Throttle_kD"];
+  */
+
   LoopTimer = micros();
 
   // Inicia o WebSocket server
@@ -299,6 +343,7 @@ void setup(void) {
   server.on("/getTrotleLimit", APIGetTrotleLimit);
   server.on("/getGainMotors", APIGetGainMotors);
   server.on("/getDroneStatus", APIGetStatusDrone);
+  server.on("/getPID", APIGetPID);
   //server.on("/getEscCalibration", APIGetEscCalibration);
   server.on("/postAnglesCalibration", HTTP_POST, APIPostAnglesCalibration);
   server.on("/postGainMotors", HTTP_POST, APIPostGainMotors);
@@ -308,6 +353,7 @@ void setup(void) {
   server.on("/postFlightMode", HTTP_POST, APIPostFlightMode);
   server.on("/postGyroParam", HTTP_POST, APIPostGyroParam);
   server.on("/postReboot", HTTP_POST, APIPostReboot);
+  server.on("/postPID", HTTP_POST, APIPostPID);
   
   //server.on("/postEscCalibration", HTTP_POST, APIPostEscCalibration);
   server.begin();
@@ -353,14 +399,13 @@ void setup(void) {
   AccX_CalibFactor = readFile(SPIFFS, "/AccX_CalibFactor.txt").toFloat();
   AccY_CalibFactor = readFile(SPIFFS, "/AccY_CalibFactor.txt").toFloat();
   AccZ_CalibFactor = readFile(SPIFFS, "/AccZ_CalibFactor.txt").toFloat();
-  
+
+  //PID
+  PitchPID.SetOutputLimits(-10, 10); //-10% to +10% of speed trottle
+  PitchPID.SetMode(AUTOMATIC);
 }
 /************ TASKS ****************/
 void loop(void) {
-  Gyro_signals();
-
-  return;
-
   //Modo de calibracao do ESC
   if (Mode.EscCalibration){
     EscCalibrationMode();
@@ -398,8 +443,22 @@ void TaskPID(void *pvParameters){
   while (true) {
     unsigned long timeSpan = micros() - lastUptade;
     lastUptade = micros();
+    if (Mode.Angle && Control.ENABLE){
 
-    //Codigo aqui
+      //Inicializa o PID
+      if (PitchPID.GetMode() == MANUAL){
+        PitchPID.SetMode(AUTOMATIC);
+      }
+
+      PitchPIDVars.Setpoint = 0;
+      PitchPIDVars.Input = ErrorAnglePitch;
+      PitchPID.Compute();
+      
+    }else{
+      if (PitchPID.GetMode() == AUTOMATIC){
+        PitchPID.SetMode(MANUAL);
+      }
+    }
 
     vTaskDelayUntil(&xLastWakeTime, xFrequency); // delay até o próximo ciclo
   }
@@ -458,14 +517,20 @@ void AngleMode(){
   ErrorAnglePitch = AnglePitch - DesiredAnglePitch;
   ErrorAngleRoll = AngleRoll - DesiredAngleRoll;
 
+  /*
   InputPitch = ErrorAnglePitch * 0.5;
   InputRoll = ErrorAngleRoll * 0.5;
   InputYaw = DesiredRateYaw * 0.5;
+  */
+
+  InputPitch = PitchPIDVars.Output; //-10 to +10 % of speed
+  InputRoll = ErrorAngleRoll * 0.5;
+  InputYaw = DesiredRateYaw * 0.5;
   
-  MotorInput1 = InputThrottle - InputPitch + InputRoll - InputYaw;
-  MotorInput2 = InputThrottle - InputPitch - InputRoll + InputYaw;
-  MotorInput3 = InputThrottle + InputPitch + InputRoll + InputYaw;
-  MotorInput4 = InputThrottle + InputPitch - InputRoll - InputYaw;
+  MotorInput1 = InputThrottle - InputPitch;// + InputRoll - InputYaw;
+  MotorInput2 = InputThrottle - InputPitch;// - InputRoll + InputYaw;
+  MotorInput3 = InputThrottle + InputPitch;// + InputRoll + InputYaw;
+  MotorInput4 = InputThrottle + InputPitch;// - InputRoll - InputYaw;
   
   if (Control.ENABLE){
     MotorInput1 = range(MotorInput1 * GainMotor1, 0, 100);
@@ -502,15 +567,19 @@ void AngleMode(){
   */
   Serial.print(",MotorInput1:");
   Serial.print(MotorInput1);
+  /*
   Serial.print(",MotorInput2:");
   Serial.print(MotorInput2);
   Serial.print(",MotorInput3:");
   Serial.print(MotorInput3);
   Serial.print(",MotorInput4:");
   Serial.println(MotorInput4);
+  */
+  Serial.print(",PID_Pitch:");
+  Serial.print(PitchPIDVars.Output);
+  Serial.print(",ErrorAnglePitch:");
+  Serial.println(ErrorAnglePitch);
   /*
-  Serial.print(",DesiredAnglePitch:");
-  Serial.print(DesiredAnglePitch);
   Serial.print(",DesiredAngleRoll:");
   Serial.print(DesiredAngleRoll);
   Serial.print(",DesiredRateYaw:");
@@ -733,6 +802,19 @@ void APIGetStatusDrone(){
   serializeJson(jsonDocument, buffer);
   server.send(200, "application/json", buffer);
   
+}
+void APIGetPID(){
+  StaticJsonDocument<1024> jsonDocument;
+  char buffer[1024];
+
+  jsonDocument.clear(); // Clear json buffer
+  JsonObject pid = jsonDocument.to<JsonObject>();
+  pid["Pitch_kP"] = PitchPIDVars.kP;
+  pid["Pitch_kI"] = PitchPIDVars.kI;
+  pid["Pitch_kD"] = PitchPIDVars.kD;
+
+  serializeJson(jsonDocument, buffer);
+  server.send(200, "application/json", buffer);
 }
 void APIGetGainMotors(){
   StaticJsonDocument<1024> jsonDocument;
@@ -957,11 +1039,61 @@ void APIPostGyroParam(){
 void APIPostReboot(){
   ESP.restart();
 }
+void APIPostPID(){
+  if (server.hasArg("plain")) {
+    String json = server.arg("plain");  // Recebe o corpo da requisição
+
+    // Cria um objeto JSON para armazenar os dados recebidos
+    StaticJsonDocument<200> doc;
+
+    // Deserializa o JSON recebido
+    DeserializationError error = deserializeJson(doc, json);
+
+    if (error) {
+      Serial.print("Erro ao parsear JSON: ");
+      Serial.println(error.c_str());
+      server.send(400, "application/json", "{\"status\":\"erro\",\"msg\":\"JSON inválido\"}");
+      return;
+    }
+
+    Parameters["Pitch_kP"] = doc["Pitch_kP"];
+    Parameters["Pitch_kI"] = doc["Pitch_kI"];
+    Parameters["Pitch_kD"] = doc["Pitch_kD"];
+    /*
+
+    Parameters["Roll_kP"] = doc["Roll_kP"];
+    Parameters["Roll_kI"] = doc["Roll_kI"];
+    Parameters["Roll_kD"] = doc["Roll_kD"];
+
+    Parameters["Yall_kP"] = doc["Yall_kP"];
+    Parameters["Yall_kI"] = doc["Yall_kI"];
+    Parameters["Yall_kD"] = doc["Yall_kD"];
+
+    Parameters["Throttle_kP"] = doc["Throttle_kP"];
+    Parameters["Throttle_kI"] = doc["Throttle_kI"];
+    Parameters["Throttle_kD"] = doc["Throttle_kD"];
+    */
+
+    PitchPIDVars.kP = Parameters["Pitch_kP"];
+    PitchPIDVars.kI = Parameters["Pitch_kI"];
+    PitchPIDVars.kD = Parameters["Pitch_kD"];
+
+    PitchPID.SetTunings(PitchPIDVars.kP, PitchPIDVars.kI, PitchPIDVars.kD);
+
+    char buffer[2000];
+    serializeJson(Parameters, buffer);
+    writeFile(SPIFFS, "/Parameters.json", buffer);
+    // Resposta ao cliente
+    server.send(200, "application/json", "{\"status\":\"sucesso\",\"msg\":\"JSON recebido com sucesso\"}");
+  } else {
+    server.send(400, "application/json", "{\"status\":\"erro\",\"msg\":\"Corpo vazio no POST\"}");
+  }
+}
 /************************************/
 
 /************* UTILs ****************/
 void SetMotorPower(int indexMotor, int power){
-  power = range(power, 0, 100);
+  power = range(power, 0, 50); //Max 50%
 
   if(indexMotor == 1){
     mot1.write(map(power, 0, 100, 0, 180));
