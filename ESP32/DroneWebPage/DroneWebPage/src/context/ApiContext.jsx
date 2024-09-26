@@ -8,8 +8,8 @@ export const ApiContextProvider = ({children})=>{
     const {joystick} = useContext(JoystickContext);
     const joystickRef = useRef(joystick)
     const connectionStatusRef = useRef('Closed')
-    const [socketUrl, setSocketUrl] = useState("wss://192.168.1.45:81/");
-    const [ip, setIp] = useState("192.168.1.45");
+    const [socketUrl, setSocketUrl] = useState("wss://drone:81/");
+    const [ip, setIp] = useState("drone");
     const enableDrone = useRef(false);
     const stopDrone = useRef(false);
 

@@ -29,16 +29,8 @@ const router = createBrowserRouter([
       ),
     children:[
       {
-        path: "/",
-        element: <ConexaoPage/>
-      },
-      {
         path: "/Fly",
         element: <FlyPage/>
-      },
-      {
-        path: "/Conexao",
-        element: <ConexaoPage/>
       },
       {
         path: "/ConfigGeral",

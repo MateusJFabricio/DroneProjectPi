@@ -2,7 +2,6 @@ import React, {PureComponent} from 'react'
 import {RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, Tooltip, Legend, ResponsiveContainer, ReferenceLine} from 'recharts';
 
 const GraficoPequeno = ({chartTitle, axisName, data}) => {
-    console.log(data)
     data = [
         {
             source: 'X',
@@ -36,7 +35,7 @@ const GraficoPequeno = ({chartTitle, axisName, data}) => {
             <PolarRadiusAxis angle={30} domain={[-45, 45]} stroke='black'/>
             <Radar name="Angle" dataKey="Angle" stroke="green" strokeWidth={2} fill="transparent" fillOpacity={0.6} />
             <Radar name="Acc" dataKey="Acc" stroke="blue" strokeWidth={2} fill="transparent" fillOpacity={0.6} />
-            <Radar name="Gyro" dataKey="Gyro" stroke="red" strokeWidth={2} fill="transparent" fillOpacity={0.6} />
+            {/* <Radar name="Gyro" dataKey="Gyro" stroke="red" strokeWidth={2} fill="transparent" fillOpacity={0.6} /> */}
             <Legend />
             </RadarChart>
         </ResponsiveContainer>

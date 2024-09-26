@@ -10,7 +10,7 @@
 #include <SimpleKalmanFilter.h>
 #include <ESPmDNS.h>
 
-uint16_t throttle = 0;
+bool ESC_CALIB_ENABLED = false;
 
 WebSocketsServer webSocket = WebSocketsServer(81);
 WebServer server(80);
@@ -41,6 +41,17 @@ struct ControlType{
 };
 
 ControlType Control = {1500, 1500, 1500, 1000, false, false};
+
+struct ModeType{
+  bool Angle;
+  bool Acro;
+  bool EscCalibration;
+  bool GyroCalibration;
+  bool GyroAnalisys;
+  bool ReturnHome;
+};
+
+ModeType Mode = {false, false, false, false, false};
 
 volatile float RatePitch, RateRoll, RateYaw;
 volatile float RateCalibrationPitch, RateCalibrationRoll, RateCalibrationYaw;
@@ -128,7 +139,6 @@ float DAngleRoll=0; float DAnglePitch=DAngleRoll;
 volatile float MotorInput1, MotorInput2, MotorInput3, MotorInput4;
 
 void setup(void) {
-  
   timeSpanLoop = micros();
   timeSpanTaskAPI = micros();
   timeSpanTaskSocket = micros();
@@ -211,7 +221,7 @@ void setup(void) {
   mot1.write(0);
   mot2.write(0);
   mot3.write(0);
-  mot4.write(0); 
+  mot4.write(0);
 
   //Beep de inicializacao
   pinMode(15, OUTPUT);
@@ -233,14 +243,17 @@ void setup(void) {
   server.on("/getTrotleLimit", APIGetTrotleLimit);
   server.on("/getGainMotors", APIGetGainMotors);
   server.on("/getDroneStatus", APIGetStatusDrone);
+  //server.on("/getEscCalibration", APIGetEscCalibration);
   server.on("/postAnglesCalibration", HTTP_POST, APIPostAnglesCalibration);
   server.on("/postGainMotors", HTTP_POST, APIPostGainMotors);
   server.on("/postRestoreParameters", HTTP_POST, APIPostRestoreParameters);
   server.on("/postGainMotors", HTTP_OPTIONS, APIOptions);
   server.on("/postTrotleLimit", HTTP_POST, APIPostTrotleLimit);
+  server.on("/postFlightMode", HTTP_POST, APIPostFlightMode);
+  //server.on("/postEscCalibration", HTTP_POST, APIPostEscCalibration);
   server.begin();
 
-  Serial.println("Antes das tasks");
+  Serial.println("Inicializa as tasks");
   xTaskCreatePinnedToCore(
       TaskWebServer, /* Function to implement the task */
       "TaskWebServer", /* Name of the task */
@@ -280,23 +293,39 @@ void setup(void) {
   AccX_CalibFactor = readFile(SPIFFS, "/AccX_CalibFactor.txt").toFloat();
   AccY_CalibFactor = readFile(SPIFFS, "/AccY_CalibFactor.txt").toFloat();
   AccZ_CalibFactor = readFile(SPIFFS, "/AccZ_CalibFactor.txt").toFloat();
-
-  Serial.println("Fim do setup");
+  
 }
 
 void loop(void) {
-  Gyro_signals();
-  delay(10);
-  return;
-  AngleMode();
+  
+  //Modo de calibracao do ESC
+  if (Mode.EscCalibration){
+    EscCalibrationMode();
+  }
+
+  if (Mode.Angle){
+    AngleMode();
+  }
+
+  if (Mode.Acro){
+    AcroMode();
+  }
+
+  if (Mode.GyroCalibration){
+    CalibrarAngulos();
+  }
+
+  if (Mode.GyroAnalisys){
+    GyroAnalisys();
+  }
+
+  if (Mode.ReturnHome){
+    ReturnHomeMode();
+  }
 }
 
 bool isConnected(){
   return (millis() - lastPingTime) < 2000;
-}
-
-int NormalizeMinMax(int val, int min, int max){
-  return val > max ? max : (val < min ? min : val);
 }
 
 void TaskPing(int id, unsigned long *timeSpan){
@@ -361,6 +390,67 @@ void Beep(int code){
   }
 }
 
+void GyroAnalisys(){
+  Gyro_signals();
+
+  if (Control.ENABLE){
+    mot1.write(map(Control.TROTLE, 1500, 2000, 0, 180));
+    mot2.write(map(Control.TROTLE, 1500, 2000, 0, 180));
+    mot3.write(map(Control.TROTLE, 1500, 2000, 0, 180));
+    mot4.write(map(Control.TROTLE, 1500, 2000, 0, 180));
+  }else{
+    mot1.write(0);
+    mot2.write(0);
+    mot3.write(0);
+    mot4.write(0);
+  }
+
+  Serial.print(",AnglePitch:");
+  Serial.print(AnglePitch);
+  Serial.print(",AngleRoll:");
+  Serial.print(AngleRoll);
+  Serial.print(",AngleYaw:");
+  Serial.print(AngleYaw);
+  Serial.print(",MenosCem:");
+  Serial.print(-50);
+  Serial.print(",Zero:");
+  Serial.print(0);
+  Serial.print(",Cem:");
+  Serial.print(50);
+  Serial.println();
+}
+void EscCalibrationMode(){
+  if (Control.ENABLE){
+    mot1.write(map(Control.TROTLE, 1500, 2000, 0, 180));
+    mot2.write(map(Control.TROTLE, 1500, 2000, 0, 180));
+    mot3.write(map(Control.TROTLE, 1500, 2000, 0, 180));
+    mot4.write(map(Control.TROTLE, 1500, 2000, 0, 180));
+  }else{
+    mot1.write(0);
+    mot2.write(0);
+    mot3.write(0);
+    mot4.write(0);
+  }
+}
+
+void AcroMode(){
+  return;
+  float AnguloMax_Pitch = 10;
+  float AnguloMax_Roll = 10;
+  float AnguloBySec_Yaw = 10;
+
+  neutralPositionAdjustment();
+
+  InputPitch=map(trunc(Control.PITCH), 1000, 2000, AnguloMax_Pitch * -1, AnguloMax_Pitch);
+  InputRoll=map(trunc(Control.ROLL), 1000, 2000, AnguloMax_Roll * -1, AnguloMax_Roll);
+  InputYaw=map(trunc(Control.YAW), 1000, 2000, AnguloBySec_Yaw * -1, AnguloBySec_Yaw);
+
+  MotorInput1 = InputThrottle - InputPitch + InputRoll - InputYaw;
+  MotorInput2 = InputThrottle - InputPitch - InputRoll + InputYaw;
+  MotorInput3 = InputThrottle + InputPitch + InputRoll + InputYaw;
+  MotorInput4 = InputThrottle + InputPitch - InputRoll - InputYaw;
+}
+
 void AngleMode(){
   Gyro_signals();
 
@@ -386,31 +476,19 @@ void AngleMode(){
   MotorInput2 = InputThrottle - InputPitch - InputRoll + InputYaw;
   MotorInput3 = InputThrottle + InputPitch + InputRoll + InputYaw;
   MotorInput4 = InputThrottle + InputPitch - InputRoll - InputYaw;
-
+  
   if (Control.ENABLE){
-    if (MotorInput1 > 0){
-      mot1.write(map(MotorInput1 * GainMotor1, 0, 100, 0, 180));
-    }else{
-      mot1.write(0);
-    }
+    MotorInput1 = range(MotorInput1 * GainMotor1, 0, 100);
+    mot1.write(map(MotorInput1, 0, 100, 0, 180));
 
-    if(MotorInput2 > 0){
-      mot2.write(map(MotorInput2 * GainMotor2, 0, 100, 0, 180));
-    }else{
-      mot2.write(0);
-    }
+    MotorInput2 = range(MotorInput2 * GainMotor2, 0, 100);
+    mot2.write(map(MotorInput2, 0, 100, 0, 180));
 
-    if(MotorInput1 > 0){
-      mot3.write(map(MotorInput3 * GainMotor3, 0, 100, 0, 180));
-    }else{
-      mot3.write(0);
-    }
+    MotorInput3 = range(MotorInput3 * GainMotor3, 0, 100);
+    mot3.write(map(MotorInput3, 0, 100, 0, 180));
 
-    if(MotorInput1 > 0){
-      mot4.write(map(MotorInput4 * GainMotor4, 0, 100, 0, 180));
-    }else{
-      mot4.write(0);
-    }
+    MotorInput4 = range(MotorInput4 * GainMotor4, 0, 100);
+    mot4.write(map(MotorInput4, 0, 100, 0, 180));
 
   }else{
     mot1.write(0);
@@ -442,14 +520,15 @@ void AngleMode(){
   Serial.print(",MotorInput3:");
   Serial.print(MotorInput3);
   Serial.print(",MotorInput4:");
-  Serial.print(MotorInput4);
-
+  Serial.println(MotorInput4);
+  /*
   Serial.print(",DesiredAnglePitch:");
   Serial.print(DesiredAnglePitch);
   Serial.print(",DesiredAngleRoll:");
   Serial.print(DesiredAngleRoll);
   Serial.print(",DesiredRateYaw:");
   Serial.println(DesiredRateYaw);
+  */
 }
 
 void ReturnHomeMode(){
@@ -825,8 +904,12 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
       bool enable = doc["ENABLE"];
 
       if (!Control.ENABLE && enable){
-        if (Control.TROTLE < 1100){
+        if (Mode.EscCalibration){
           Control.ENABLE = true;
+        }else{
+          if (Control.TROTLE < 1100){
+            Control.ENABLE = true;
+          }
         }
       }
 
@@ -865,6 +948,13 @@ void APIGetStatusDrone(){
   jsonDocument.clear(); // Clear json buffer
   JsonObject status = jsonDocument.to<JsonObject>();
   status["DRONE_ARMADO"] = Control.ENABLE;
+  status["Angle"] = Mode.Angle;
+  status["Acro"] = Mode.Acro;
+  status["EscCalibration"] = Mode.EscCalibration;
+
+  status["GyroCalibration"] = Mode.GyroCalibration;
+  status["GyroAnalisys"] = Mode.GyroAnalisys;
+  status["ReturnHome"] = Mode.ReturnHome;
 
   serializeJson(jsonDocument, buffer);
   server.send(200, "application/json", buffer);
@@ -1021,7 +1111,37 @@ void APIPostTrotleLimit() {
     server.send(400, "application/json", "{\"status\":\"erro\",\"msg\":\"Corpo vazio no POST\"}");
   }
 }
+void APIPostFlightMode(){
+  if (server.hasArg("plain")) {
+    String json = server.arg("plain");  // Recebe o corpo da requisição
 
+    // Cria um objeto JSON para armazenar os dados recebidos
+    StaticJsonDocument<200> doc;
+
+    // Deserializa o JSON recebido
+    DeserializationError error = deserializeJson(doc, json);
+
+    if (error) {
+      Serial.print("Erro ao parsear JSON: ");
+      Serial.println(error.c_str());
+      server.send(400, "application/json", "{\"status\":\"erro\",\"msg\":\"JSON inválido\"}");
+      return;
+    }
+
+    //Exemplo de como acessar os campos do JSON
+    Mode.Angle            = doc["Angle"];
+    Mode.Acro             = doc["Acro"];
+    Mode.EscCalibration   = doc["EscCalibration"];
+    Mode.GyroCalibration  = doc["GyroCalibration"];
+    Mode.GyroAnalisys     = doc["GyroAnalisys"];
+    Mode.ReturnHome       = doc["ReturnHome"];
+
+    // Resposta ao cliente
+    server.send(200, "application/json", "{\"status\":\"sucesso\",\"msg\":\"JSON recebido com sucesso\"}");
+  } else {
+    server.send(400, "application/json", "{\"status\":\"erro\",\"msg\":\"Corpo vazio no POST\"}");
+  }
+}
 void Gyro_signals()
 {
   unsigned long sampleMicros = (lastSampleMicros > 0) ? micros() - lastSampleMicros : 0;
@@ -1089,9 +1209,9 @@ void Gyro_signals()
   Gyroscope_x += (kalmanFilterGX.getEstimate() - GyroX_CalibFactor) * sampleMicros / 1000000;
   Gyroscope_y += (kalmanFilterGY.getEstimate() - GyroY_CalibFactor) * sampleMicros / 1000000;
   Gyroscope_z += (kalmanFilterGZ.getEstimate() - GyroZ_CalibFactor) * sampleMicros / 1000000;
-  AnglePitch = (Gyroscope_x + Accelerometer_x) / 2;
+  AnglePitch = Accelerometer_x;//(Gyroscope_x + Accelerometer_x) / 2;
   AnglePitch *= -1;
-  AngleRoll = (Gyroscope_y + Accelerometer_y) / 2;
+  AngleRoll = Accelerometer_y;//(Gyroscope_y + Accelerometer_y) / 2;
   AngleYaw = Gyroscope_z;
 
   /*
@@ -1205,6 +1325,7 @@ void CalibrarAngulos(){
   AccY_CalibFactor = calibAccY;
   AccZ_CalibFactor = calibAccZ;
 
+  Mode.GyroCalibration = false;
   Serial.println("Finalizado a calibracao do MPU6050");
 }
 
@@ -1313,4 +1434,16 @@ void ReadParameters(){
       Serial.println("Parameters read with success");
     }
   }
+}
+
+float range(float value, float min, float max){
+  if (value < min){
+    value = min;
+  }
+
+  if (value > max){
+    value = max;
+  }
+
+  return value;
 }

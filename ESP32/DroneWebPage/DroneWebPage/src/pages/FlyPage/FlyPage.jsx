@@ -11,10 +11,35 @@ const FlyPage = () => {
   const connectionStatusRef = useRef();
   const chartData = useRef([])
   const [data, setData] = useState([])
+  const [mode, setMode] = useState('0'); 
+  const [currentFlightMode, setCurrentFlightMode] = useState({
+    Angle: false,
+    Acro: false,
+    EscCalibration: false,
+    GyroCalibration: false,
+    GyroAnalisys: false,
+    ReturnHome: false,
+  })
 
-  const [dadosTestes, setDadosTeste] = useState([{
-
-  }])
+  useEffect(() => {
+    if (currentFlightMode.Angle){
+      setMode('1')
+    }else if (currentFlightMode.Acro){
+      setMode('2')
+    }else if (currentFlightMode.EscCalibration){
+      setMode('3')
+    }else if (currentFlightMode.GyroCalibration){
+      setMode('4')
+    }else if (currentFlightMode.GyroAnalisys){
+      setMode('5')
+    }else if (currentFlightMode.ReturnHome){
+      setMode('6')
+    }else{
+      setMode('0')
+    }
+    
+  }, [currentFlightMode])
+  
 
   const [orientation, setOrientation] = useState({
     Yaw: 0,
@@ -41,7 +66,7 @@ const FlyPage = () => {
             setOrientation(dados)
           })
         }
-      }, 1000)
+      }, 100)
     }
   
     return () => {
@@ -59,12 +84,55 @@ const FlyPage = () => {
     setData(dataTemp)
   }, [chartData.current])
 
+  const handleModeClick = () => {
+    let jsonState = {
+      Angle: mode === '1',
+      Acro: mode === '2',
+      EscCalibration: mode === '3',
+      GyroCalibration: mode === '4',
+      GyroAnalisys: mode === '5',
+      ReturnHome: mode === '6',
+    }
+
+    setCurrentFlightMode(jsonState)
+    console.log(currentFlightMode)
+    console.log(mode)
+    if (connectionStatus === 'Open'){
+      try {
+        fetch("http://" + ip + ":80/postFlightMode", {
+          method: "POST",
+          body: JSON.stringify(jsonState),
+          headers: {
+            "Content-type": "text/plain;"
+          }
+        })
+        .then((response) => response.json())
+        .catch(()=>{
+          setFormMesssage('Houve um erro ao salvar os dados')
+        })
+      } catch (error) {
+        setFormMesssage('Houve um erro ao salvar os dados')
+      }
+    }
+  }
   return (
     <div className='flypage-container'>
       <div className='title'>
         NAVEGAÇÃO
       </div>
       <div className='flypage-map-container'>
+        <div style={{display: 'flex', flexDirection: 'row', height: '40px', width: '100%', border: 'solid 1px', alignItems: 'center', gap: '10px', padding: '2px 5px 2px 5px'}}>
+          Flight Mode - {mode}
+          <select onChange={e=>setMode(e.target.value)} name="mode" id="mode">
+            <option value="0">Nenhum</option>
+            <option value="1">Angle</option>
+            <option value="2">Acro</option>
+            <option value="3">Esc Calibration</option>
+            <option value="4">Gyro Calibration</option>
+            <option value="5">Gyro Analise</option>
+          </select>
+          <button onClick={handleModeClick}>Confirmar</button>
+        </div>
         <div className='glp-viewer'>
           <GLPViewer Pitch={orientation.Pitch} Yaw={orientation.Yaw} Roll={orientation.Roll} step={0.1}/>
           <div style={{width: "30%", height: "100%", padding: "5px", backgroundColor: "white"}}>
