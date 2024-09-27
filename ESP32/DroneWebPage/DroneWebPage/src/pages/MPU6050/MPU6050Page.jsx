@@ -64,6 +64,12 @@ const MPU6050Page = () => {
 
   }
 
+  useEffect(() => {
+    if (connectionStatus === 'Open'){
+      handleAtualizarFiltroComplementar();
+    }
+  }, [connectionStatus])
+
   const handleSalvarFiltroComplementar = ()=>{
     try {
       setSalvarFiltroComplementarProgresso(true)
@@ -121,7 +127,7 @@ const MPU6050Page = () => {
 
   return (
     <>
-      <div style={{display: 'flex', flexDirection: 'column', alignItems: 'center', width: '90%'}}>
+      <div style={{display: 'flex', flexDirection: 'column', alignItems: 'center', width: '90%', maxHeight: '50%'}}>
         <div style={{display: 'flex', flexDirection: 'column', width: '100%', height: '40px', fontSize: '25px', alignItems: 'center', justifyContent: 'center'}}>CALIBRAÇÕES</div>
         <div style={{display: 'flex', flexDirection: 'row', gap: '20px', height: 'auto', width: '100%'}}>
           {/* Giroscopiop */}
@@ -140,17 +146,6 @@ const MPU6050Page = () => {
             </div>
             <br />
             <div style={{display: "flex", flexDirection: 'column', gap: "10px", border: 'solid 1px', padding: '5px', alignItems: 'center'}}>
-              Filtro Complementar:
-              <div style={{display: "flex", flexDirection: 'row',width: '90%', gap: "10px", border: 'solid 1px', padding: '5px', alignItems: 'center'}}>
-                <p>Alpha do Gyro:</p>
-                  <input type="range" onChange={(e)=>{setFiltroComplementarGyro(parseFloat(e.target.value))}} value={filtroComplementarGyro} min={0} max={1} step={0.001}/>
-                <p>{filtroComplementarGyro.toFixed(3)}%</p>
-              </div>
-              <div style={{display: "flex", flexDirection: 'row',width: '90%', gap: "10px", border: 'solid 1px', padding: '5px', alignItems: 'center'}}>
-                <p>Alpha do Acc:</p>
-                  <input type="range" onChange={(e)=>{setFiltroComplementarAcc(parseFloat(e.target.value))}} value={filtroComplementarAcc} min={0} max={1} step={0.001}/>
-                <p>{filtroComplementarAcc.toFixed(3)}%</p>
-              </div>
               Filtro de Kalman:
               <div style={{display: "flex", flexDirection: 'row',width: '90%', gap: "10px", border: 'solid 1px', padding: '5px', alignItems: 'center'}}>
                 <p>Pitch Erro Processo:</p>
@@ -200,7 +195,7 @@ const MPU6050Page = () => {
               <input type="button" value="Iniciar calibração" onClick={handleCalibrarEsc}/>
             </div>
             <p style={{borderStyle: 'solid', borderWidth: '1px'}}>Status:{statusCalibracaoEsc}</p>
-            <p>
+            <div>
               <h3>Procedimento:</h3>
               <ol>
                 <li>Habilitar a calibração</li>
@@ -209,7 +204,7 @@ const MPU6050Page = () => {
                 <li>Quando finalizado, o ESP32 reinicia</li>
                 <li>O ESP32 envia uma resposta de finalizado</li>
               </ol>
-            </p>
+            </div>
           </fieldset>
           </form>
 

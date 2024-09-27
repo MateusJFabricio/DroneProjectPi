@@ -8,18 +8,15 @@ export const ApiContextProvider = ({children})=>{
     const {joystick} = useContext(JoystickContext);
     const joystickRef = useRef(joystick)
     const connectionStatusRef = useRef('Closed')
-    const [socketUrl, setSocketUrl] = useState("wss://drone:81/");
-    const [ip, setIp] = useState("drone");
+    const [socketUrl, setSocketUrl] = useState("wss://" + (localStorage.getItem('IP_DRONE') || 'drone') + ":81/");
+    const [ip, setIp] = useState((localStorage.getItem('IP_DRONE') || 'drone'));
     const enableDrone = useRef(false);
     const stopDrone = useRef(false);
 
     const { sendMessage, lastMessage, readyState } = useWebSocket(socketUrl, {
         onError: (event)=>{
-          console.log(event)
         },
         shouldReconnect: (closeEvent) => {
-          console.log('ShouldReconnect:')
-          console.log(closeEvent)
           return true;
         },
         heartbeat: true,
@@ -36,7 +33,7 @@ export const ApiContextProvider = ({children})=>{
       }[readyState];
 
     const setUrl = (ip)=>{
-      console.log(ip)
+      localStorage.setItem('IP_DRONE', ip);
       setSocketUrl("ws://"+ ip + ":81");
       setIp(ip);
     }

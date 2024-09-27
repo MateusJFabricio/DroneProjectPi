@@ -192,7 +192,7 @@ const FlyPage = () => {
             <GraficoPequeno chartTitle={'Orientação'} axisName={'name'} data={data}/>
           </div>
         </div>
-        <div class='map-map'>
+        <div className='map-map'>
           <Map latitude={-25.553483} longitute={-49.200533} latitudeObj={-25.55163933661852} longituteObj={-49.20139214196535}/>
         </div>
         

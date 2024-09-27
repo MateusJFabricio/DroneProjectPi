@@ -1,46 +1,58 @@
-import React, {useState, useContext} from 'react'
+import React, {useState, useContext, useEffect, useRef} from 'react'
 import '@vaadin/progress-bar';
 import './ConfigPidPage.css'
 import {ApiContext} from '../../context/ApiContext'
+import PIDData from '../../components/PIDData/PIDData';
 
 const ConfiPidPage = () => {
-  const [pitch_kP, setPitch_kP] = useState(0)
-  const [pitch_kI, setPitch_kI] = useState(0)
-  const [pitch_kD, setPitch_kD] = useState(0)
-  const [pitchPidProgresso, setPitchPidProgresso] = useState(false)
+  const enableChartDataPitch = useRef(false)
+  const enableChartDataRoll = useRef(false)
+  const [pitchPidData, setPitchPidData] = useState({
+    P: 0,
+    I: 0,
+    D: 0
+  })
+  const [rollPidData, setRollPidData] = useState({
+    P: 0,
+    I: 0,
+    D: 0
+  })
+
   const {setUrl, connectionStatus, sendMessage, ip} = useContext(ApiContext);
 
-  const formPitchPIDUpdate = ()=>{
-    setPitchPidProgresso(true)
+  const PIDDataUpdate = ()=>{
     
     try{
       fetch("http://" + ip + ":80/getPID")
       .then((response) => response.json())
       .then((json) => {
-        setPitch_kP(json.Pitch_kP)
-        setPitch_kI(json.Pitch_kI)
-        setPitch_kD(json.Pitch_kD)
+        setPitchPidData({
+          P: json.Pitch_kP,
+          I: json.Pitch_kI,
+          D: json.Pitch_kD
+        })
+
+        setRollPidData({
+          P: json.Roll_kP,
+          I: json.Roll_kI,
+          D: json.Roll_kD
+        })
       })
       .catch((erro)=>{
         console.log(erro)
       })
     }catch{
     }finally{
-      setPitchPidProgresso(false)
     }
   }
 
-  const formSubmit = (event)=>{
-    event.preventDefault();
-    setPitchPidProgresso(true)
-    const formData = new FormData(event.currentTarget);
+  useEffect(() => {
+    if (connectionStatus === 'Open'){
+      PIDDataUpdate();
+    }
+  }, [connectionStatus])
 
-    const data = {
-      Pitch_kP: formData.get("kP"),
-      Pitch_kI: formData.get("kI"),
-      Pitch_kD: formData.get("kD"),
-    };
-    
+  const formSubmit = (data)=>{    
     try{
       fetch("http://" + ip + ":80/postPID", {
         method: "POST",
@@ -53,40 +65,40 @@ const ConfiPidPage = () => {
       
     }catch(erro){
       console.log(erro)
-    }finally{
-      setPitchPidProgresso(false)
     }
+  }
+  const pitchChartData = ()=>{
+    let valor = []
+    for (let index = 0; index < 80; index++) {
+      valor.push({ name: index, Output: index * 2, Actual: index * Math.PI, SP: 80 })
+    }
+
+    return valor
+  }
+  const rollChartData = ()=>{
+    let valor = []
+    for (let index = 0; index < 42; index++) {
+      valor.push({ name: index, Output: index * 2, Actual: index * Math.PI, SP: 80 })
+    }
+
+    return valor
+  }
+
+  const enableFetchDataPitch = (value)=>{
+    enableChartDataPitch.current = value;
+  }
+
+  const enableFetchDataRoll = (value)=>{
+    enableChartDataRoll.current = value;
   }
 
   return (
-    <div className='configpidpage-container'>
-      <form onSubmit={formSubmit}>
-        <fieldset>
-          <legend>Pitch PID</legend>
-          <p>
-            <label htmlFor="kP">
-              kP: <input type="text" id="kP" name='kP' value={pitch_kP} onChange={(e)=> setPitch_kP(e.target.value)}/>
-            </label>
-          </p>
-          <p>
-            <label htmlFor="kI">
-                kI: <input type="text" id="kI" name='kI' value={pitch_kI} onChange={(e)=> setPitch_kI(e.target.value)}/>
-              </label>
-          </p>
-          <p>
-            <label htmlFor="kD">
-                kD: <input type="text" id="kD" name='kD' value={pitch_kD} onChange={(e)=> setPitch_kD(e.target.value)}/>
-              </label>
-          </p>
-          {
-            pitchPidProgresso && <vaadin-progress-bar indeterminate></vaadin-progress-bar>
-          }
-          <div style={{display: "flex", gap: "10px"}}>
-            <input type="button" value="Atualizar" onClick={formPitchPIDUpdate}/>
-            <input type="submit" value="Salvar"/>
-          </div>
-        </fieldset>
-      </form>
+    <div style={{display: 'flex', flexDirection: 'column', gap: '20px', borderBottom: 'solid 1px', padding: '5px', width: '100%'}}>
+      <div className='title'>
+        CONFIGURAÇÃO DOS PIDs
+      </div>
+      <PIDData title={"Pitch PID"} pidData={pitchPidData} pidDataUpdate={PIDDataUpdate} pidDataSave={formSubmit} enableFetchData={enableFetchDataPitch} chartData={pitchChartData()}/>
+      <PIDData title={"Roll PID"} pidData={rollPidData} pidDataUpdate={PIDDataUpdate} pidDataSave={formSubmit} enableFetchData={enableFetchDataRoll} chartData={rollChartData()}/>
     </div>
   )
 }

@@ -26,7 +26,6 @@ const NavBar = () => {
   }, [ip])
 
   const btnConectar = () =>{
-    console.log(inputRef.current)
     setUrl(inputRef.current.value);
   };
 

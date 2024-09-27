@@ -11,6 +11,8 @@ const ConfigGeralPage = () => {
   const [trotleLimit, setTrotleLimit] = useState("")
   const [formMesssage, setFormMesssage] = useState("Atualizando....")
   const [formTrotleLimitMessage, setformTrotleLimitMessage] = useState("Atualizando....")
+  const [trotleIncremental, setTrotleIncremental] = useState(false)
+  const [trotleIncremento, setTrotleIncremento] = useState(0)
 
   useEffect(() => {
       formMotorsGainUpdate();
@@ -90,14 +92,25 @@ const ConfigGeralPage = () => {
 
   const formLimiteTrotleUpdate = () =>{
     fetch("http://" + ip + ":80/getTrotleLimit")
-      .then(response => response.json())
-      .then(data => {
-        setTrotleLimit(data.TROTLE_LIMIT);
-        setformTrotleLimitMessage('');
-      })
-      .catch(()=>{
-        setformTrotleLimitMessage('Erro ao atualizar');
-      })
+    .then(response => response.json())
+    .then(data => {
+      setTrotleLimit(data.TROTLE_LIMIT);
+      setformTrotleLimitMessage('');
+    })
+    .catch(()=>{
+      setformTrotleLimitMessage('Erro ao atualizar');
+    })
+
+    fetch("http://" + ip + ":80/getFlightParameters")
+    .then(response => response.json())
+    .then(data => {
+      setTrotleIncremental(data.Trotle_Incremental);
+      setTrotleIncremento(data.Trotle_Incremento)
+      setformTrotleLimitMessage('');
+    })
+    .catch(()=>{
+      setformTrotleLimitMessage('Erro ao atualizar');
+    })
   }
 
   const formLimiteTrotleSubmit = (event) =>{
@@ -121,20 +134,36 @@ const ConfigGeralPage = () => {
       setformTrotleLimitMessage('O limite deve ser preenchido!');
       return;
     }
-    const data = {
+    const dataLimit = {
       TROTLE_LIMIT: limit
+    }
+
+    const dataTrotleConfig = {
+      Trotle_Incremental: formData.get("checkbox_incremental"),
+      Trotle_Incremento: formData.get("trotle_incremento")
     }
 
     try{
       fetch("http://" + ip + ":80/postTrotleLimit", {
         method: "POST",
-        body: JSON.stringify(data),
+        body: JSON.stringify(dataLimit),
         headers: {
           "Content-type": "text/plain;"
         }
       })
       .then((response) => response.json())
-      .then((json) => console.log(json))
+      .catch(()=>{
+        setformTrotleLimitMessage('Houve um erro ao salvar os dados')
+      })
+
+      fetch("http://" + ip + ":80/postFligthParam", {
+        method: "POST",
+        body: JSON.stringify(dataTrotleConfig),
+        headers: {
+          "Content-type": "text/plain;"
+        }
+      })
+      .then((response) => response.json())
       .catch(()=>{
         setformTrotleLimitMessage('Houve um erro ao salvar os dados')
       })
@@ -181,11 +210,26 @@ const ConfigGeralPage = () => {
       </form>
       <form onSubmit={formLimiteTrotleSubmit}>
         <fieldset>
-          <legend>Limitar Trotle</legend>
+          <legend>Configurações Trotle</legend>
+          <p>
+            <label htmlFor="trotle_config">
+              <p>
+                Incremental:
+                <input type="checkbox" name="checkbox_incremental" checked={trotleIncremental} onClick={(e)=>setTrotleIncremental(!trotleIncremental)} />
+              </p>
+              <p>
+                Incremento:
+                <input type="text" name="trotle_incremento" value={trotleIncremento} onChange={(e)=> setTrotleIncremento(e.target.value)} />
+              </p>
+              
+            </label>
+          </p>
           <p style={{color: "red"}}>*Range de 0 até 1</p>
           <p>
             <label htmlFor="trotle_limit">
-              Limite: <input type="text" id="trotle_limit" name='trotle_limit' value={trotleLimit} onChange={(e)=> setTrotleLimit(e.target.value)}/> %
+              Limite: 
+              <input type="range" id="trotle_limit" name='trotle_limit' min={0} max={1} step={0.01} value={trotleLimit} onChange={(e)=> setTrotleLimit(e.target.value)}/> 
+              {trotleLimit}%
             </label>
           </p>
           <p style={{color: "red"}}>

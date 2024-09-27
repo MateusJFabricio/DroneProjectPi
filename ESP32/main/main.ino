@@ -184,6 +184,9 @@ PIDType YawPIDVars = {1, 1, 1, 1, 1, 1, true};
 PIDType TrottlePIDVars = {1, 1, 1, 1, 1, 1, true};
 
 PID PitchPID(&PitchPIDVars.Input, &PitchPIDVars.Output, &PitchPIDVars.Setpoint, PitchPIDVars.kP, PitchPIDVars.kI, PitchPIDVars.kD, PitchPIDVars.Inverted);
+PID RollPID(&RollPIDVars.Input, &RollPIDVars.Output, &RollPIDVars.Setpoint, RollPIDVars.kP, RollPIDVars.kI, RollPIDVars.kD, RollPIDVars.Inverted);
+PID YawPID(&YawPIDVars.Input, &YawPIDVars.Output, &YawPIDVars.Setpoint, YawPIDVars.kP, YawPIDVars.kI, YawPIDVars.kD, YawPIDVars.Inverted);
+PID TrottlePID(&TrottlePIDVars.Input, &TrottlePIDVars.Output, &TrottlePIDVars.Setpoint, TrottlePIDVars.kP, TrottlePIDVars.kI, TrottlePIDVars.kD, TrottlePIDVars.Inverted);
 
 void setup(void) {
   timeSpanLoop = micros();
@@ -281,6 +284,7 @@ void setup(void) {
     ComplementaryAlpha = Parameters["ComplementaryAlpha"];
   }
 
+  /******* Kalman Vars ****/
   if(Parameters.containsKey("Pitch_Q_angle")){
     KalmanVarPitch.Q_angle = Parameters["Pitch_Q_angle"];
   }
@@ -300,7 +304,8 @@ void setup(void) {
   if(Parameters.containsKey("Roll_Q_bias")){
     KalmanVarRoll.Q_bias = Parameters["Roll_Q_bias"];
   }
-
+  /******* PID Vars ****/
+  //Pitch
   if(Parameters.containsKey("Roll_R_measure")){
     KalmanVarRoll.R_measure = Parameters["Roll_R_measure"];
   }
@@ -313,23 +318,36 @@ void setup(void) {
   if(Parameters.containsKey("Pitch_kD")){
     PitchPIDVars.kD = Parameters["Pitch_kD"];
   }
-  /*
-  Parameters["Pitch_kI"] = doc["Pitch_kI"];
-  Parameters["Pitch_kD"] = doc["Pitch_kD"];
-
-  Parameters["Roll_kP"] = doc["Roll_kP"];
-  Parameters["Roll_kI"] = doc["Roll_kI"];
-  Parameters["Roll_kD"] = doc["Roll_kD"];
-
-  Parameters["Yall_kP"] = doc["Yall_kP"];
-  Parameters["Yall_kI"] = doc["Yall_kI"];
-  Parameters["Yall_kD"] = doc["Yall_kD"];
-
-  Parameters["Throttle_kP"] = doc["Throttle_kP"];
-  Parameters["Throttle_kI"] = doc["Throttle_kI"];
-  Parameters["Throttle_kD"] = doc["Throttle_kD"];
-  */
-
+  //Roll
+  if(Parameters.containsKey("Roll_kP")){
+    RollPIDVars.kP = Parameters["Roll_kP"];
+  }
+  if(Parameters.containsKey("Roll_kI")){
+    RollPIDVars.kI = Parameters["Roll_kI"];
+  }
+  if(Parameters.containsKey("Roll_kD")){
+    RollPIDVars.kD = Parameters["Pitch_kD"];
+  }
+  //Yaw
+  if(Parameters.containsKey("Yaw_kP")){
+    YawPIDVars.kP = Parameters["Yaw_kP"];
+  }
+  if(Parameters.containsKey("Yaw_kI")){
+    YawPIDVars.kI = Parameters["Yaw_kI"];
+  }
+  if(Parameters.containsKey("Yaw_kD")){
+    YawPIDVars.kD = Parameters["Yaw_kD"];
+  }
+  //Trottle
+  if(Parameters.containsKey("Trottle_kP")){
+    TrottlePIDVars.kP = Parameters["Trottle_kP"];
+  }
+  if(Parameters.containsKey("Trottle_kI")){
+    TrottlePIDVars.kI = Parameters["Trottle_kI"];
+  }
+  if(Parameters.containsKey("Trottle_kD")){
+    TrottlePIDVars.kD = Parameters["Trottle_kD"];
+  }
   LoopTimer = micros();
 
   // Inicia o WebSocket server
@@ -344,6 +362,7 @@ void setup(void) {
   server.on("/getGainMotors", APIGetGainMotors);
   server.on("/getDroneStatus", APIGetStatusDrone);
   server.on("/getPID", APIGetPID);
+  server.on("/getFlightParameters", APIGetFlightParameters);
   //server.on("/getEscCalibration", APIGetEscCalibration);
   server.on("/postAnglesCalibration", HTTP_POST, APIPostAnglesCalibration);
   server.on("/postGainMotors", HTTP_POST, APIPostGainMotors);
@@ -354,6 +373,7 @@ void setup(void) {
   server.on("/postGyroParam", HTTP_POST, APIPostGyroParam);
   server.on("/postReboot", HTTP_POST, APIPostReboot);
   server.on("/postPID", HTTP_POST, APIPostPID);
+  server.on("/postFligthParam", HTTP_POST, APIPostFligthParam);
   
   //server.on("/postEscCalibration", HTTP_POST, APIPostEscCalibration);
   server.begin();
@@ -401,8 +421,14 @@ void setup(void) {
   AccZ_CalibFactor = readFile(SPIFFS, "/AccZ_CalibFactor.txt").toFloat();
 
   //PID
-  PitchPID.SetOutputLimits(-10, 10); //-10% to +10% of speed trottle
+  PitchPID.SetOutputLimits(-100, 100);
   PitchPID.SetMode(AUTOMATIC);
+  RollPID.SetOutputLimits(-100, 100);
+  RollPID.SetMode(AUTOMATIC);
+  YawPID.SetOutputLimits(0, 100);
+  YawPID.SetMode(AUTOMATIC);
+  TrottlePID.SetOutputLimits(0, 100);
+  TrottlePID.SetMode(AUTOMATIC);
 }
 /************ TASKS ****************/
 void loop(void) {
@@ -436,11 +462,12 @@ void loop(void) {
 }
 void TaskPID(void *pvParameters){
   Serial.println("Task PID Iniciada");
-  const TickType_t xFrequency = pdMS_TO_TICKS(5); // ciclo de 5 ms
+  const TickType_t xFrequency = pdMS_TO_TICKS(2); // ciclo de 5 ms
   TickType_t xLastWakeTime = xTaskGetTickCount();  // pega o tick atual
   unsigned long lastUptade = micros();
 
   while (true) {
+    
     unsigned long timeSpan = micros() - lastUptade;
     lastUptade = micros();
     if (Mode.Angle && Control.ENABLE){
@@ -450,15 +477,57 @@ void TaskPID(void *pvParameters){
         PitchPID.SetMode(AUTOMATIC);
       }
 
-      PitchPIDVars.Setpoint = 0;
-      PitchPIDVars.Input = ErrorAnglePitch;
-      PitchPID.Compute();
+      if (RollPID.GetMode() == MANUAL){
+        RollPID.SetMode(AUTOMATIC);
+      }
+
+      if (YawPID.GetMode() == MANUAL){
+        YawPID.SetMode(AUTOMATIC);
+      }
+
+      if (TrottlePID.GetMode() == MANUAL){
+        TrottlePID.SetMode(AUTOMATIC);
+      }
+      
+
+      PitchPIDVars.Setpoint = DesiredAnglePitch;
+      PitchPIDVars.Input = AnglePitch;
+
+      RollPIDVars.Setpoint = DesiredAngleRoll;
+      RollPIDVars.Input = AngleRoll;
+
+      YawPIDVars.Setpoint = 0;
+      YawPIDVars.Input = 0; // angulos por seg
+
+      TrottlePIDVars.Setpoint = 0;
+      TrottlePIDVars.Input = 0; //Taxa de queda
       
     }else{
       if (PitchPID.GetMode() == AUTOMATIC){
         PitchPID.SetMode(MANUAL);
+        PitchPID.Reset();
+      }
+
+      if (RollPID.GetMode() == AUTOMATIC){
+        RollPID.SetMode(MANUAL);
+        RollPID.Reset();
+      }
+
+      if (YawPID.GetMode() == AUTOMATIC){
+        YawPID.SetMode(MANUAL);
+        YawPID.Reset();
+      }
+
+      if (TrottlePID.GetMode() == AUTOMATIC){
+        TrottlePID.SetMode(MANUAL);
+        TrottlePID.Reset();
       }
     }
+
+    PitchPID.Compute();
+    RollPID.Compute();
+    YawPID.Compute();
+    TrottlePID.Compute();
 
     vTaskDelayUntil(&xLastWakeTime, xFrequency); // delay até o próximo ciclo
   }
@@ -512,7 +581,12 @@ void AngleMode(){
   DesiredAnglePitch=map(trunc(Control.PITCH), 1000, 2000, -10, 10);
   DesiredAngleRoll=map(trunc(Control.ROLL), 1000, 2000, -10, 10);
   DesiredRateYaw=map(trunc(Control.YAW), 1000, 2000, -10, 10);
-  InputThrottle=map(trunc(Control.TROTLE), 1500, 2000, 0, 100);
+  if (Parameters["Trotle_Incremental"] == true){
+    InputThrottle=map(trunc(Control.TROTLE), 1000, 2000, 0, 100);
+  }else{
+    InputThrottle=map(trunc(Control.TROTLE), 1500, 2000, 0, 100);
+  }
+  
 
   ErrorAnglePitch = AnglePitch - DesiredAnglePitch;
   ErrorAngleRoll = AngleRoll - DesiredAngleRoll;
@@ -523,27 +597,28 @@ void AngleMode(){
   InputYaw = DesiredRateYaw * 0.5;
   */
 
-  InputPitch = PitchPIDVars.Output; //-10 to +10 % of speed
-  InputRoll = ErrorAngleRoll * 0.5;
+  InputPitch = PitchPIDVars.Output;
+  InputRoll = RollPIDVars.Output;
   InputYaw = DesiredRateYaw * 0.5;
   
-  MotorInput1 = InputThrottle - InputPitch;// + InputRoll - InputYaw;
-  MotorInput2 = InputThrottle - InputPitch;// - InputRoll + InputYaw;
-  MotorInput3 = InputThrottle + InputPitch;// + InputRoll + InputYaw;
-  MotorInput4 = InputThrottle + InputPitch;// - InputRoll - InputYaw;
+  MotorInput1 = InputThrottle - InputPitch + InputRoll;// - InputYaw;
+  MotorInput2 = InputThrottle - InputPitch - InputRoll;// + InputYaw;
+  MotorInput3 = InputThrottle + InputPitch + InputRoll;// + InputYaw;
+  MotorInput4 = InputThrottle + InputPitch - InputRoll;// - InputYaw;
   
+  int maxPower = 50;
   if (Control.ENABLE){
     MotorInput1 = range(MotorInput1 * GainMotor1, 0, 100);
-    SetMotorPower(1, MotorInput1);
+    SetMotorPower(1, MotorInput1, maxPower);
 
     MotorInput2 = range(MotorInput2 * GainMotor2, 0, 100);
-    SetMotorPower(2, MotorInput2);
+    SetMotorPower(2, MotorInput2, maxPower);
 
     MotorInput3 = range(MotorInput3 * GainMotor3, 0, 100);
-    SetMotorPower(3, MotorInput3);
+    SetMotorPower(3, MotorInput3, maxPower);
 
     MotorInput4 = range(MotorInput4 * GainMotor4, 0, 100);
-    SetMotorPower(4, MotorInput4);
+    SetMotorPower(4, MotorInput4, maxPower);
 
   }else{
     StopMotors();
@@ -567,6 +642,12 @@ void AngleMode(){
   */
   Serial.print(",MotorInput1:");
   Serial.print(MotorInput1);
+  Serial.print(",MotorInput2:");
+  Serial.print(MotorInput2);
+  Serial.print(",MotorInput3:");
+  Serial.print(MotorInput3);
+  Serial.print(",MotorInput4:");
+  Serial.print(MotorInput4);
   /*
   Serial.print(",MotorInput2:");
   Serial.print(MotorInput2);
@@ -575,10 +656,12 @@ void AngleMode(){
   Serial.print(",MotorInput4:");
   Serial.println(MotorInput4);
   */
+  Serial.print(",Trottle:");
+  Serial.print(Control.TROTLE);
   Serial.print(",PID_Pitch:");
   Serial.print(PitchPIDVars.Output);
-  Serial.print(",ErrorAnglePitch:");
-  Serial.println(ErrorAnglePitch);
+  Serial.print(",PID_Roll:");
+  Serial.println(PitchPIDVars.Output);
   /*
   Serial.print(",DesiredAngleRoll:");
   Serial.print(DesiredAngleRoll);
@@ -735,15 +818,22 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
 
     if (doc.containsKey("TROTLE")){
       float trotle = doc["TROTLE"];
-      const float trotleFactor = 200;
-      Control.TROTLE = map(trunc(trotle * 1000), -1000, 1000, 1000, 2000);
-      Control.TROTLE = Control.TROTLE > 2000 ? 2000 : Control.TROTLE;
-      Control.TROTLE = Control.TROTLE < 1000 ? 1000 : Control.TROTLE;
+      if ((bool)Parameters["Trotle_Incremental"]){
+        if (trotle < 0.1 && trotle > -0.1){
+          trotle = 0;
+        }
+        Control.TROTLE += trotle * (int)Parameters["Trotle_Incremento"];
+      }else{
+        Control.TROTLE = map(trunc(trotle * 1000), -1000, 1000, 1000, 2000);
+      }
     }
 
     if (!Control.ENABLE){
       Control.TROTLE -= 5;
     }
+
+    Control.TROTLE = Control.TROTLE > 2000 ? 2000 : Control.TROTLE;
+    Control.TROTLE = Control.TROTLE < 1000 ? 1000 : Control.TROTLE;
 
     if (doc.containsKey("ENABLE")){
       bool enable = doc["ENABLE"];
@@ -752,7 +842,7 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
         if (Mode.EscCalibration){
           Control.ENABLE = true;
         }else{
-          if (Control.TROTLE < 1100){
+          if (Control.TROTLE < 1500){
             Control.ENABLE = true;
           }
         }
@@ -813,6 +903,18 @@ void APIGetPID(){
   pid["Pitch_kI"] = PitchPIDVars.kI;
   pid["Pitch_kD"] = PitchPIDVars.kD;
 
+  pid["Roll_kP"] = RollPIDVars.kP;
+  pid["Roll_kI"] = RollPIDVars.kI;
+  pid["Roll_kD"] = RollPIDVars.kD;
+
+  pid["Yall_kP"] = YawPIDVars.kP;
+  pid["Yall_kI"] = YawPIDVars.kI;
+  pid["Yall_kD"] = YawPIDVars.kD;
+
+  pid["Throttle_kP"] = TrottlePIDVars.kP;
+  pid["Throttle_kI"] = TrottlePIDVars.kI;
+  pid["Throttle_kD"] = TrottlePIDVars.kD;
+
   serializeJson(jsonDocument, buffer);
   server.send(200, "application/json", buffer);
 }
@@ -868,6 +970,19 @@ void APIGetAngles(){
   serializeJson(jsonDocument, buffer);
   server.send(200, "application/json", buffer);
 }
+void APIGetFlightParameters(){
+  StaticJsonDocument<1024> jsonDocument;
+  char buffer[1024];
+
+  jsonDocument.clear(); // Clear json buffer
+  JsonObject json = jsonDocument.to<JsonObject>();
+  json["Trotle_Incremental"] = (bool)Parameters["Trotle_Incremental"];
+  json["Trotle_Incremento"] = (int)Parameters["Trotle_Incremento"];
+
+  serializeJson(jsonDocument, buffer);
+  server.send(200, "application/json", buffer);
+}
+
 void APIOptions(){
   server.sendHeader("Access-Control-Allow-Origin", "*");
   server.sendHeader("Access-Control-Allow-Methods", "POST, GET, OPTIONS");
@@ -1056,29 +1171,79 @@ void APIPostPID(){
       return;
     }
 
-    Parameters["Pitch_kP"] = doc["Pitch_kP"];
-    Parameters["Pitch_kI"] = doc["Pitch_kI"];
-    Parameters["Pitch_kD"] = doc["Pitch_kD"];
-    /*
+    if (doc.containsKey("Pitch_kP")){
+      Parameters["Pitch_kP"] = doc["Pitch_kP"];
+      Parameters["Pitch_kI"] = doc["Pitch_kI"];
+      Parameters["Pitch_kD"] = doc["Pitch_kD"];
+    }
 
-    Parameters["Roll_kP"] = doc["Roll_kP"];
-    Parameters["Roll_kI"] = doc["Roll_kI"];
-    Parameters["Roll_kD"] = doc["Roll_kD"];
+    if (doc.containsKey("Roll_kP")){
+      Parameters["Roll_kP"] = doc["Roll_kP"];
+      Parameters["Roll_kI"] = doc["Roll_kI"];
+      Parameters["Roll_kD"] = doc["Roll_kD"];
+    }
 
-    Parameters["Yall_kP"] = doc["Yall_kP"];
-    Parameters["Yall_kI"] = doc["Yall_kI"];
-    Parameters["Yall_kD"] = doc["Yall_kD"];
+    if (doc.containsKey("Yall_kP")){
+      Parameters["Yall_kP"] = doc["Yall_kP"];
+      Parameters["Yall_kI"] = doc["Yall_kI"];
+      Parameters["Yall_kD"] = doc["Yall_kD"];
+    }
 
-    Parameters["Throttle_kP"] = doc["Throttle_kP"];
-    Parameters["Throttle_kI"] = doc["Throttle_kI"];
-    Parameters["Throttle_kD"] = doc["Throttle_kD"];
-    */
+    if (doc.containsKey("Throttle_kP")){
+      Parameters["Throttle_kP"] = doc["Throttle_kP"];
+      Parameters["Throttle_kI"] = doc["Throttle_kI"];
+      Parameters["Throttle_kD"] = doc["Throttle_kD"];
+    }
 
     PitchPIDVars.kP = Parameters["Pitch_kP"];
     PitchPIDVars.kI = Parameters["Pitch_kI"];
     PitchPIDVars.kD = Parameters["Pitch_kD"];
 
+    RollPIDVars.kP = Parameters["Roll_kP"];
+    RollPIDVars.kI = Parameters["Roll_kI"];
+    RollPIDVars.kD = Parameters["Roll_kD"];
+
+    YawPIDVars.kP = Parameters["Yaw_kP"];
+    YawPIDVars.kI = Parameters["Yaw_kI"];
+    YawPIDVars.kD = Parameters["Yaw_kD"];
+
+    TrottlePIDVars.kP = Parameters["Trottle_kP"];
+    TrottlePIDVars.kI = Parameters["Trottle_kI"];
+    TrottlePIDVars.kD = Parameters["Trottle_kD"];
+
     PitchPID.SetTunings(PitchPIDVars.kP, PitchPIDVars.kI, PitchPIDVars.kD);
+    RollPID.SetTunings(RollPIDVars.kP, RollPIDVars.kI, RollPIDVars.kD);
+    YawPID.SetTunings(YawPIDVars.kP, YawPIDVars.kI, YawPIDVars.kD);
+    TrottlePID.SetTunings(TrottlePIDVars.kP, TrottlePIDVars.kI, TrottlePIDVars.kD);
+
+    char buffer[2000];
+    serializeJson(Parameters, buffer);
+    writeFile(SPIFFS, "/Parameters.json", buffer);
+    // Resposta ao cliente
+    server.send(200, "application/json", "{\"status\":\"sucesso\",\"msg\":\"JSON recebido com sucesso\"}");
+  } else {
+    server.send(400, "application/json", "{\"status\":\"erro\",\"msg\":\"Corpo vazio no POST\"}");
+  }
+}
+void APIPostFligthParam(){
+  if (server.hasArg("plain")) {
+    String json = server.arg("plain");  // Recebe o corpo da requisição
+
+    // Cria um objeto JSON para armazenar os dados recebidos
+    StaticJsonDocument<200> doc;
+
+    // Deserializa o JSON recebido
+    DeserializationError error = deserializeJson(doc, json);
+
+    if (error) {
+      Serial.print("Erro ao parsear JSON: ");
+      Serial.println(error.c_str());
+      server.send(400, "application/json", "{\"status\":\"erro\",\"msg\":\"JSON inválido\"}");
+      return;
+    }
+
+    Parameters["Trotle_Incremental"] = (bool)doc["Trotle_Incremental"];
+    Parameters["Trotle_Incremento"] = (int)doc["Trotle_Incremento"];
 
     char buffer[2000];
     serializeJson(Parameters, buffer);
@@ -1093,7 +1258,10 @@ void APIPostPID(){
 
 /************* UTILs ****************/
 void SetMotorPower(int indexMotor, int power){
-  power = range(power, 0, 50); //Max 50%
+  SetMotorPower(indexMotor, power, 100);
+}
+void SetMotorPower(int indexMotor, int power, int maxPower){
+  power = range(power, 0, maxPower); //Max 50%
 
   if(indexMotor == 1){
     mot1.write(map(power, 0, 100, 0, 180));
@@ -1284,9 +1452,9 @@ void neutralPositionAdjustment()
     Control.PITCH= 1500;
   }
 
-  if (Control.TROTLE < max && Control.TROTLE > min)
+  if (Control.TROTLE < 1010 && Control.TROTLE > min)
   {
-    Control.TROTLE= 1500;
+    Control.TROTLE= 1000;
   }
 }
 void Gyro_signals()
