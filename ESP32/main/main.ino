@@ -10,6 +10,9 @@
 #include <SimpleKalmanFilter.h>
 #include <ESPmDNS.h>
 #include <PID_v1.h>
+#include "driver/mcpwm.h"
+#include "soc/mcpwm_periph.h"
+
 
 bool ESC_CALIB_ENABLED = false;
 
@@ -17,7 +20,7 @@ WebSocketsServer webSocket = WebSocketsServer(81);
 WebServer server(80);
 
 // REPLACE WITH YOUR NETWORK CREDENTIALS
-const char* ssid = "ROBOSOFT";
+const char* ssid = "DRONE";
 const char* password = "robosoft";
 unsigned long timeSpanLoop;
 unsigned long timeSpanTaskAPI;
@@ -261,17 +264,18 @@ void setup(void) {
 
   //Configura Motor
   Serial.println("Configurando motores");
-  mot1.attach(mot1_pin,1000,2000);
+
+  //mot1.attach(mot1_pin,1000,2000);
   mot2.attach(mot2_pin,1000,2000);
   mot3.attach(mot3_pin,1000,2000);
-  mot4.attach(mot4_pin,1000,2000);
+  //mot4.attach(mot4_pin,1000,2000);
   Serial.println("Finalizado as configuracoes dos motores");
 
   //to stop esc from beeping
-  mot1.write(0);
+  //mot1.write(0);
   mot2.write(0);
   mot3.write(0);
-  mot4.write(0);
+  //mot4.write(0);
 
   //Beep de inicializacao
   pinMode(15, OUTPUT);
@@ -362,6 +366,7 @@ void setup(void) {
   server.on("/getGainMotors", APIGetGainMotors);
   server.on("/getDroneStatus", APIGetStatusDrone);
   server.on("/getPID", APIGetPID);
+  server.on("/getPIDTrace", APIGetPIDTrace);
   server.on("/getFlightParameters", APIGetFlightParameters);
   //server.on("/getEscCalibration", APIGetEscCalibration);
   server.on("/postAnglesCalibration", HTTP_POST, APIPostAnglesCalibration);
@@ -421,14 +426,31 @@ void setup(void) {
   AccZ_CalibFactor = readFile(SPIFFS, "/AccZ_CalibFactor.txt").toFloat();
 
   //PID
-  PitchPID.SetOutputLimits(-100, 100);
+  PitchPID.SetOutputLimits(-180, 180);
   PitchPID.SetMode(AUTOMATIC);
-  RollPID.SetOutputLimits(-100, 100);
+  RollPID.SetOutputLimits(-180, 180);
   RollPID.SetMode(AUTOMATIC);
-  YawPID.SetOutputLimits(0, 100);
+  YawPID.SetOutputLimits(0, 180);
   YawPID.SetMode(AUTOMATIC);
-  TrottlePID.SetOutputLimits(0, 100);
+  TrottlePID.SetOutputLimits(0, 180);
   TrottlePID.SetMode(AUTOMATIC);
+
+  //Configura o PWM
+  mcpwm_gpio_init(MCPWM_UNIT_0, MCPWM0A, mot1_pin);
+  mcpwm_gpio_init(MCPWM_UNIT_0, MCPWM0B, mot2_pin);
+  mcpwm_gpio_init(MCPWM_UNIT_0, MCPWM1A, mot3_pin);
+  mcpwm_gpio_init(MCPWM_UNIT_0, MCPWM1B, mot4_pin);
+
+  mcpwm_config_t pwm_config;
+  pwm_config.frequency = 4000; // Frequência para Oneshot125 (4 kHz)
+  pwm_config.cmpr_a = 0;       // Inicialmente, duty cycle de 0%
+  pwm_config.cmpr_b = 0;       // Duty cycle do MCPWM B (não usado aqui)
+  pwm_config.counter_mode = MCPWM_UP_COUNTER;
+  pwm_config.duty_mode = MCPWM_DUTY_MODE_0; // Saída padrão
+
+  // Aplica a configuração no MCPWM
+  mcpwm_init(MCPWM_UNIT_0, MCPWM_TIMER_0, &pwm_config); // Motor 1 e 2
+  mcpwm_init(MCPWM_UNIT_0, MCPWM_TIMER_1, &pwm_config); // Motor 3 e 4
 }
 /************ TASKS ****************/
 void loop(void) {
@@ -489,7 +511,9 @@ void TaskPID(void *pvParameters){
         TrottlePID.SetMode(AUTOMATIC);
       }
       
-
+      double rangeValue = 180 - InputThrottle;
+      rangeValue = rangeValue < 10 ? 10 : rangeValue; //Limita em 10 % o minimo
+      PitchPID.SetOutputLimits(rangeValue * -1, rangeValue);
       PitchPIDVars.Setpoint = DesiredAnglePitch;
       PitchPIDVars.Input = AnglePitch;
 
@@ -532,6 +556,7 @@ void TaskPID(void *pvParameters){
     vTaskDelayUntil(&xLastWakeTime, xFrequency); // delay até o próximo ciclo
   }
 }
+
 void TaskPing(int id, unsigned long *timeSpan){
   if(taskPingEnable){
     String p = ",TimeSpan(" + String(id) + "):";
@@ -578,13 +603,13 @@ void AngleMode(){
   float AnguloMax_Roll = 10;
   float AnguloBySec_Yaw = 10;
   
-  DesiredAnglePitch=map(trunc(Control.PITCH), 1000, 2000, -10, 10);
-  DesiredAngleRoll=map(trunc(Control.ROLL), 1000, 2000, -10, 10);
-  DesiredRateYaw=map(trunc(Control.YAW), 1000, 2000, -10, 10);
+  DesiredAnglePitch=mapFloat(Control.PITCH, 1000, 2000, -10, 10);
+  DesiredAngleRoll=mapFloat(Control.ROLL, 1000, 2000, -10, 10);
+  DesiredRateYaw=mapFloat(Control.YAW, 1000, 2000, -10, 10);
   if (Parameters["Trotle_Incremental"] == true){
-    InputThrottle=map(trunc(Control.TROTLE), 1000, 2000, 0, 100);
+    InputThrottle=mapFloat(Control.TROTLE, 1000, 2000, 0, 100);
   }else{
-    InputThrottle=map(trunc(Control.TROTLE), 1500, 2000, 0, 100);
+    InputThrottle=mapFloat(Control.TROTLE, 1500, 2000, 0, 100);
   }
   
 
@@ -601,10 +626,10 @@ void AngleMode(){
   InputRoll = RollPIDVars.Output;
   InputYaw = DesiredRateYaw * 0.5;
   
-  MotorInput1 = InputThrottle - InputPitch + InputRoll;// - InputYaw;
-  MotorInput2 = InputThrottle - InputPitch - InputRoll;// + InputYaw;
-  MotorInput3 = InputThrottle + InputPitch + InputRoll;// + InputYaw;
-  MotorInput4 = InputThrottle + InputPitch - InputRoll;// - InputYaw;
+  MotorInput1 = InputThrottle - InputPitch;// + InputRoll;// - InputYaw;
+  MotorInput2 = InputThrottle - InputPitch;// - InputRoll;// + InputYaw;
+  MotorInput3 = InputThrottle + InputPitch;// + InputRoll;// + InputYaw;
+  MotorInput4 = InputThrottle + InputPitch;// - InputRoll;// - InputYaw;
   
   int maxPower = 50;
   if (Control.ENABLE){
@@ -688,20 +713,30 @@ void AcroMode(){
 }
 void EscCalibrationMode(){
   if (Control.ENABLE){
-    int power = map(Control.TROTLE, 1500, 2000, 0, 100);
-    SetMotorPower(1, power);
-    SetMotorPower(2, power);
-    SetMotorPower(3, power);
-    SetMotorPower(4, power);
+     //double duty = map(Control.TROTLE, 1000, 2000, 0, 100);
+
+    float duty = mapFloat(Control.TROTLE, 1000, 2000, 0, 100);
+
+    Serial.print(",Duty:");
+    Serial.print(duty);
+    Serial.print(",Trotle:");
+    Serial.println(Control.TROTLE);
+    
+    SetMotorPower(1, duty);
+    SetMotorPower(2, duty);
+    SetMotorPower(3, duty);
+    SetMotorPower(4, duty);
+    
   }else{
     StopMotors();
   }
 }
+
 void GyroAnalisys(){
   Gyro_signals();
 
   if (Control.ENABLE){
-    int power = map(Control.TROTLE, 1500, 2000, 0, 100);
+    float power = mapFloat(Control.TROTLE, 1500, 2000, 0, 100);
     SetMotorPower(1, power);
     SetMotorPower(2, power);
     SetMotorPower(3, power);
@@ -918,6 +953,24 @@ void APIGetPID(){
   serializeJson(jsonDocument, buffer);
   server.send(200, "application/json", buffer);
 }
+void APIGetPIDTrace(){
+  StaticJsonDocument<1024> jsonDocument;
+  char buffer[1024];
+
+  jsonDocument.clear(); // Clear json buffer
+  JsonObject pid = jsonDocument.to<JsonObject>();
+  pid["Pitch_Setpoint"] = PitchPIDVars.Setpoint;
+  pid["Pitch_Output"] = PitchPIDVars.Output;
+  pid["Pitch_Actual"] = PitchPIDVars.Input;
+
+  pid["Roll_Setpoint"] = RollPIDVars.Setpoint;
+  pid["Roll_Output"] = RollPIDVars.Output;
+  pid["Roll_Actual"] = RollPIDVars.Input;
+
+  serializeJson(jsonDocument, buffer);
+  server.send(200, "application/json", buffer);
+}
+
 void APIGetGainMotors(){
   StaticJsonDocument<1024> jsonDocument;
   char buffer[1024];
@@ -1260,23 +1313,37 @@ void APIPostFligthParam(){
 void SetMotorPower(int indexMotor, int power){
   SetMotorPower(indexMotor, power, 100);
 }
-void SetMotorPower(int indexMotor, int power, int maxPower){
-  power = range(power, 0, maxPower); //Max 50%
-
-  if(indexMotor == 1){
-    mot1.write(map(power, 0, 100, 0, 180));
+void SetMotorPower(int indexMotor, float power, int maxPower){
+  if (power > maxPower){
+    power = maxPower;
   }
 
-  if(indexMotor == 2){
-    mot2.write(map(power, 0, 100, 0, 180));
+  if (power < 0){
+    power = 0.0;
   }
 
-  if(indexMotor == 3){
-    mot3.write(map(power, 0, 100, 0, 180));
-  }
+  //Normaliza o valor
+  power = (50.0 / 100.0) * power;
+  power += 50.0;
 
-  if(indexMotor == 4){
-    mot4.write(map(power, 0, 100, 0, 180));
+  if (indexMotor == 1) {
+    mcpwm_set_duty(MCPWM_UNIT_0, MCPWM_TIMER_0, MCPWM_OPR_A, power); // Motor 1
+    mcpwm_set_duty_type(MCPWM_UNIT_0, MCPWM_TIMER_0, MCPWM_OPR_A, MCPWM_DUTY_MODE_0);
+  }
+  
+  if (indexMotor == 2) {
+    mcpwm_set_duty(MCPWM_UNIT_0, MCPWM_TIMER_0, MCPWM_OPR_B, power); // Motor 2
+    mcpwm_set_duty_type(MCPWM_UNIT_0, MCPWM_TIMER_0, MCPWM_OPR_B, MCPWM_DUTY_MODE_0);
+  }
+  
+  if (indexMotor == 3) {
+    mcpwm_set_duty(MCPWM_UNIT_0, MCPWM_TIMER_1, MCPWM_OPR_A, power); // Motor 3
+    mcpwm_set_duty_type(MCPWM_UNIT_0, MCPWM_TIMER_1, MCPWM_OPR_A, MCPWM_DUTY_MODE_0);
+  }
+  
+  if (indexMotor == 4) {
+    mcpwm_set_duty(MCPWM_UNIT_0, MCPWM_TIMER_1, MCPWM_OPR_B, power); // Motor 4
+    mcpwm_set_duty_type(MCPWM_UNIT_0, MCPWM_TIMER_1, MCPWM_OPR_B, MCPWM_DUTY_MODE_0);
   }
 }
 void StopMotors(){
@@ -1403,6 +1470,9 @@ int range(int value, int min, int max){
   }
 
   return value;
+}
+float mapFloat(float value, float minVal, float maxVal, float min, float max){
+  return (value - minVal) * (max - min) / (maxVal - minVal) + min;
 }
 bool isConnected(){
   return (millis() - lastPingTime) < 2000;

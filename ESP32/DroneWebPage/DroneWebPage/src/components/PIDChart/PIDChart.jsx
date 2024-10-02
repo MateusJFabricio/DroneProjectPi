@@ -1,4 +1,4 @@
-import React, {useState, useEffect} from 'react'
+import React, {useState, useEffect, useRef} from 'react'
 import {
     LineChart,
     Line,
@@ -11,8 +11,9 @@ import {
     ResponsiveContainer,
   } from 'recharts';
 
-const PIDChart = ({enable, data, zoomOut}) => {
+const PIDChart = ({enable, data, zoomOut, maxElements, reset}) => {
     const [dataChart, setDataChart] = useState([])
+    const lastIndex = useRef(0)
 
     const initialState = {
         data: data,
@@ -27,7 +28,13 @@ const PIDChart = ({enable, data, zoomOut}) => {
         animation: true,
       };
     
-    const [state, setState] = useState(initialState)
+    useEffect(() => {
+      if (reset){
+        setDataChart([])
+      }
+     
+    }, [reset])
+    
 
     useEffect(() => {
       if (zoomOut){
@@ -37,9 +44,15 @@ const PIDChart = ({enable, data, zoomOut}) => {
     
     useEffect(() => {
       if (enable){
-        setDataChart(data)
+        data[0].name = lastIndex.current;
+        let newData = [...dataChart, ...data]
+        if (newData.length > maxElements){
+          newData = newData.slice(maxElements * -1, newData.length);
+        }
+        setDataChart(newData)
+        lastIndex.current++;
       }
-    }, [enable])
+    }, [data])
 
     const getAxisYDomain = (from, to, ref, offset) => {
         const refData = initialData.slice(from - 1, to);
@@ -115,12 +128,12 @@ const PIDChart = ({enable, data, zoomOut}) => {
         >
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis dataKey="name" />
-            <YAxis />
+            <YAxis domain={[-100, 100]} />
             <Tooltip />
             <Legend />
-            <Line type="monotone" dataKey="Output" stroke="#8884d8" dot={false} activeDot={{ r: 1 }} />
+            <Line type="monotone" dataKey="Output" stroke="#8884d8" dot={false}/>
             <Line type="monotone" dataKey="Actual" stroke="#82ca9d"  dot={false} />
-            <ReferenceLine y={data !== null ? data[0].SP : 0} label="Sp" stroke="red" />
+            <Line type="monotone" dataKey="SP"     stroke="red"  dot={false} />
         </LineChart>
     </ResponsiveContainer>
   )

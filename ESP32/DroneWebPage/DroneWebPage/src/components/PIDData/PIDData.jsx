@@ -2,7 +2,7 @@ import React, {useState, useContext, useEffect} from 'react'
 import '@vaadin/progress-bar';
 import PIDChart from '../PIDChart/PIDChart';
 
-const PIDData = ({title, pidData, pidDataUpdate, pidDataSave, enableFetchData, chartData}) => {
+const PIDData = ({title, pidData, pidParamDataUpdate, pidParamDataSave, enableFetchData, chartData, save, load}) => {
     const [kPValue, setkPValue] = useState(0)
     const [kIValue, setkIValue] = useState(0)
     const [kDValue, setPkDValue] = useState(0)
@@ -11,6 +11,7 @@ const PIDData = ({title, pidData, pidDataUpdate, pidDataSave, enableFetchData, c
     const [showSP, setShowSP] = useState(true)
     const [showOutput, setShowOutput] = useState(true)
     const [zoomOutClick, setZoomOutClick] = useState(false)
+    const [resetChartData, setResetChartData] = useState(false)
 
     useEffect(() => {
         setkPValue(pidData.P)
@@ -20,7 +21,7 @@ const PIDData = ({title, pidData, pidDataUpdate, pidDataSave, enableFetchData, c
     
   const formPIDUpdate = ()=>{
     setPitchPidProgresso(true)
-    pidDataUpdate();
+    pidParamDataUpdate();
     setPitchPidProgresso(false)
   }
 
@@ -30,11 +31,12 @@ const PIDData = ({title, pidData, pidDataUpdate, pidDataSave, enableFetchData, c
     const formData = new FormData(event.currentTarget);
 
     const data = {
-      Pitch_kP: formData.get("kP"),
-      Pitch_kI: formData.get("kI"),
-      Pitch_kD: formData.get("kD"),
+      kP: formData.get("kP"),
+      kI: formData.get("kI"),
+      kD: formData.get("kD"),
     };
-    pidDataSave(data)
+
+    pidParamDataSave(data)
 
     setPitchPidProgresso(false)
   }
@@ -42,7 +44,6 @@ const PIDData = ({title, pidData, pidDataUpdate, pidDataSave, enableFetchData, c
   useEffect(() => {
     enableFetchData(enableChart)
   }, [enableChart])
-  
 
   return (
     <div style={{display: 'flex', flexDirection: 'row', width: '90%', height: '40%'}}>
@@ -88,11 +89,16 @@ const PIDData = ({title, pidData, pidDataUpdate, pidDataSave, enableFetchData, c
                     Show Output:<input type="checkbox" checked={showOutput} onChange={()=>{setShowOutput((e)=>!showOutput)}}/>
                 </label>
                 <label htmlFor="chart-zoom-out">
-                    <input type="button" onMouseDown={()=>setZoomOutClick(true)} onMouseUp={()=>setZoomOutClick(false)} value={"Zoom Out"}/>
+                    <input type="button" onClick={save} value={"Save"}/>
+                    <input type="button" onClick={load} value={"Load"}/>
+                    <input type="button" onClick={()=>setResetChartData(!resetChartData)} value={"Reset"}/>
+                </label>
+                <label htmlFor="chart-zoom-out">
+                    <input type="button" onMouseDown={()=>setZoomOutClick(true)} onMouseUp={()=>setZoomOutClick(false)} value={"Zoom Out"} />
                 </label>
             </fieldset>
         </form>
-        <PIDChart enable={enableChart} data={chartData} zoomOut={zoomOutClick}/>
+        <PIDChart enable={enableChart} data={chartData} zoomOut={zoomOutClick} maxElements={300} reset={resetChartData}/>
     </div>
   )
 }
