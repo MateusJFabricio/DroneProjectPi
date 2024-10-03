@@ -155,7 +155,12 @@ const ConfiPidPage = () => {
                 setPitchChartData([{
                   SP: json.Pitch_Setpoint,
                   Output: json.Pitch_Output,
-                  Actual: json.Pitch_Actual
+                  Actual: json.Pitch_Actual,
+                  PidTimeSinceLastCall_Millis: json.PidTimeSinceLastCall_Millis,
+                  MinMax: [json.Pitch_PIDMin, json.Pitch_PIDMax],
+                  kP: json.Pitch_PIDkP,
+                  kI: json.Pitch_PIDkI,
+                  kD: json.Pitch_PIDkD
                 }])
               }
               
@@ -163,7 +168,10 @@ const ConfiPidPage = () => {
                 setRollChartData([{
                   SP: json.Roll_Setpoint,
                   Output: json.Roll_Output,
-                  Actual: json.Roll_Actual
+                  Actual: json.Roll_Actual,
+                  PidTimeSinceLastCall_Millis: json.PidTimeSinceLastCall_Millis,
+                  Min: json.Roll_PIDMin,
+                  Max: json.Roll_PIDMax
                 }])
               }
             })

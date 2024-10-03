@@ -1,3 +1,4 @@
+#include <time.h>
 #include <WiFi.h>
 #include <WebServer.h>
 #include <WebSocketsServer.h>
@@ -13,6 +14,11 @@
 #include "driver/mcpwm.h"
 #include "soc/mcpwm_periph.h"
 
+#include <pidautotuner.h>
+PIDAutotuner tuner = PIDAutotuner();
+bool StartAutoTune = false;
+bool TunningEnabled = false;
+double TuneOutput = 0, TuneMin = 0, TuneMax = 0;
 
 bool ESC_CALIB_ENABLED = false;
 
@@ -190,6 +196,8 @@ PID PitchPID(&PitchPIDVars.Input, &PitchPIDVars.Output, &PitchPIDVars.Setpoint, 
 PID RollPID(&RollPIDVars.Input, &RollPIDVars.Output, &RollPIDVars.Setpoint, RollPIDVars.kP, RollPIDVars.kI, RollPIDVars.kD, RollPIDVars.Inverted);
 PID YawPID(&YawPIDVars.Input, &YawPIDVars.Output, &YawPIDVars.Setpoint, YawPIDVars.kP, YawPIDVars.kI, YawPIDVars.kD, YawPIDVars.Inverted);
 PID TrottlePID(&TrottlePIDVars.Input, &TrottlePIDVars.Output, &TrottlePIDVars.Setpoint, TrottlePIDVars.kP, TrottlePIDVars.kI, TrottlePIDVars.kD, TrottlePIDVars.Inverted);
+unsigned long PID_timeSpan = 0;
+unsigned long PIDTrace_timeSpan = 0;
 
 void setup(void) {
   timeSpanLoop = micros();
@@ -308,11 +316,12 @@ void setup(void) {
   if(Parameters.containsKey("Roll_Q_bias")){
     KalmanVarRoll.Q_bias = Parameters["Roll_Q_bias"];
   }
-  /******* PID Vars ****/
-  //Pitch
   if(Parameters.containsKey("Roll_R_measure")){
     KalmanVarRoll.R_measure = Parameters["Roll_R_measure"];
   }
+
+  /******* PID Vars ****/
+  //Pitch
   if(Parameters.containsKey("Pitch_kP")){
     PitchPIDVars.kP = Parameters["Pitch_kP"];
   }
@@ -368,6 +377,7 @@ void setup(void) {
   server.on("/getPID", APIGetPID);
   server.on("/getPIDTrace", APIGetPIDTrace);
   server.on("/getFlightParameters", APIGetFlightParameters);
+  server.on("/getAutoTuneProgress", APIGetAutoTuneProgress);
   //server.on("/getEscCalibration", APIGetEscCalibration);
   server.on("/postAnglesCalibration", HTTP_POST, APIPostAnglesCalibration);
   server.on("/postGainMotors", HTTP_POST, APIPostGainMotors);
@@ -379,6 +389,8 @@ void setup(void) {
   server.on("/postReboot", HTTP_POST, APIPostReboot);
   server.on("/postPID", HTTP_POST, APIPostPID);
   server.on("/postFligthParam", HTTP_POST, APIPostFligthParam);
+  server.on("/postAutoTune", HTTP_POST, APIPostAutoTune);
+  server.on("/postAutoTuneCancel", HTTP_POST, APIPostCancelAutoTune);
   
   //server.on("/postEscCalibration", HTTP_POST, APIPostEscCalibration);
   server.begin();
@@ -426,14 +438,19 @@ void setup(void) {
   AccZ_CalibFactor = readFile(SPIFFS, "/AccZ_CalibFactor.txt").toFloat();
 
   //PID
-  PitchPID.SetOutputLimits(-180, 180);
+  PitchPID.SetOutputLimits(-100, 100);
   PitchPID.SetMode(AUTOMATIC);
-  RollPID.SetOutputLimits(-180, 180);
+  RollPID.SetOutputLimits(-100, 100);
   RollPID.SetMode(AUTOMATIC);
-  YawPID.SetOutputLimits(0, 180);
+  YawPID.SetOutputLimits(0, 100);
   YawPID.SetMode(AUTOMATIC);
-  TrottlePID.SetOutputLimits(0, 180);
+  TrottlePID.SetOutputLimits(0, 100);
   TrottlePID.SetMode(AUTOMATIC);
+
+  PitchPID.SetTunings(PitchPIDVars.kP, PitchPIDVars.kI, PitchPIDVars.kD);
+  RollPID.SetTunings(RollPIDVars.kP, RollPIDVars.kI, RollPIDVars.kD);
+  YawPID.SetTunings(YawPIDVars.kP, YawPIDVars.kI, YawPIDVars.kD);
+  TrottlePID.SetTunings(TrottlePIDVars.kP, TrottlePIDVars.kI, TrottlePIDVars.kD);
 
   //Configura o PWM
   mcpwm_gpio_init(MCPWM_UNIT_0, MCPWM0A, mot1_pin);
@@ -484,14 +501,15 @@ void loop(void) {
 }
 void TaskPID(void *pvParameters){
   Serial.println("Task PID Iniciada");
-  const TickType_t xFrequency = pdMS_TO_TICKS(2); // ciclo de 5 ms
+  const TickType_t xFrequency = pdMS_TO_TICKS(2); // ciclo de 2 ms
   TickType_t xLastWakeTime = xTaskGetTickCount();  // pega o tick atual
   unsigned long lastUptade = micros();
 
   while (true) {
     
-    unsigned long timeSpan = micros() - lastUptade;
+    PID_timeSpan = micros() - lastUptade;
     lastUptade = micros();
+
     if (Mode.Angle && Control.ENABLE){
 
       //Inicializa o PID
@@ -511,7 +529,7 @@ void TaskPID(void *pvParameters){
         TrottlePID.SetMode(AUTOMATIC);
       }
       
-      double rangeValue = 180 - InputThrottle;
+      double rangeValue = 100 - InputThrottle;
       rangeValue = rangeValue < 10 ? 10 : rangeValue; //Limita em 10 % o minimo
       PitchPID.SetOutputLimits(rangeValue * -1, rangeValue);
       PitchPIDVars.Setpoint = DesiredAnglePitch;
@@ -525,7 +543,32 @@ void TaskPID(void *pvParameters){
 
       TrottlePIDVars.Setpoint = 0;
       TrottlePIDVars.Input = 0; //Taxa de queda
-      
+
+      //AutoTunning PID
+      if (StartAutoTune){
+        tuner.setTargetInputValue(0);
+        tuner.setLoopInterval(PID_timeSpan);
+        tuner.setOutputRange(TuneMin, TuneMax);
+        tuner.setZNMode(PIDAutotuner::ZNModeBasicPID);
+        tuner.startTuningLoop(micros());
+
+        StartAutoTune = false;
+        TunningEnabled = true;
+      }
+
+      if (TunningEnabled){
+        TuneOutput = (double)tuner.tunePID(AnglePitch, PID_timeSpan);
+        TuneOutput *= -1;
+      }
+
+      if (TunningEnabled && tuner.isFinished()){
+        TunningEnabled = false;
+        TuneOutput = 0;
+        PitchPIDVars.kP = tuner.getKp();
+        PitchPIDVars.kI = tuner.getKi();
+        PitchPIDVars.kD = tuner.getKd();
+        PitchPID.SetTunings(PitchPIDVars.kP, PitchPIDVars.kI, PitchPIDVars.kD);
+      }
     }else{
       if (PitchPID.GetMode() == AUTOMATIC){
         PitchPID.SetMode(MANUAL);
@@ -612,7 +655,6 @@ void AngleMode(){
     InputThrottle=mapFloat(Control.TROTLE, 1500, 2000, 0, 100);
   }
   
-
   ErrorAnglePitch = AnglePitch - DesiredAnglePitch;
   ErrorAngleRoll = AngleRoll - DesiredAngleRoll;
 
@@ -622,7 +664,12 @@ void AngleMode(){
   InputYaw = DesiredRateYaw * 0.5;
   */
 
-  InputPitch = PitchPIDVars.Output;
+  if (!TunningEnabled){
+    InputPitch = PitchPIDVars.Output;
+  }else{
+    InputPitch = TuneOutput;
+  }
+
   InputRoll = RollPIDVars.Output;
   InputYaw = DesiredRateYaw * 0.5;
   
@@ -959,13 +1006,38 @@ void APIGetPIDTrace(){
 
   jsonDocument.clear(); // Clear json buffer
   JsonObject pid = jsonDocument.to<JsonObject>();
+  //struct tm tmstruct ;
+  //tmstruct.tm_year = 0;
+  //getLocalTime(&tmstruct);
+
+  unsigned long timeSpan = millis() - PIDTrace_timeSpan;
+  PIDTrace_timeSpan = millis();
+
+  //pid["PidTime_ActualTime"] = (String(tmstruct.tm_hour) + ":" + String(tmstruct.tm_min) + ":" + String(tmstruct.tm_sec));
+  pid["PidTimeRate_Micros"] = PID_timeSpan;
+  pid["PidTimeSinceLastCall_Millis"] = timeSpan;
   pid["Pitch_Setpoint"] = PitchPIDVars.Setpoint;
   pid["Pitch_Output"] = PitchPIDVars.Output;
   pid["Pitch_Actual"] = PitchPIDVars.Input;
+  pid["Pitch_PIDMin"] = PitchPID.GetLimitMin();
+  pid["Pitch_PIDMax"] = PitchPID.GetLimitMax();
+
+  pid["Pitch_PIDkP"] = PitchPID.GetKp();
+  pid["Pitch_PIDkI"] = PitchPID.GetKi();
+  pid["Pitch_PIDkD"] = PitchPID.GetKd();
 
   pid["Roll_Setpoint"] = RollPIDVars.Setpoint;
   pid["Roll_Output"] = RollPIDVars.Output;
   pid["Roll_Actual"] = RollPIDVars.Input;
+
+  pid["Roll_PIDMin"] = RollPID.GetLimitMin();
+  pid["Roll_PIDMax"] = RollPID.GetLimitMax();
+
+  pid["Roll_PIDkP"] = RollPID.GetKp();
+  pid["Roll_PIDkI"] = RollPID.GetKi();
+  pid["Roll_PIDkD"] = RollPID.GetKd();
+
+  pid["Trotle"] = Control.TROTLE;
 
   serializeJson(jsonDocument, buffer);
   server.send(200, "application/json", buffer);
@@ -1031,6 +1103,17 @@ void APIGetFlightParameters(){
   JsonObject json = jsonDocument.to<JsonObject>();
   json["Trotle_Incremental"] = (bool)Parameters["Trotle_Incremental"];
   json["Trotle_Incremento"] = (int)Parameters["Trotle_Incremento"];
+
+  serializeJson(jsonDocument, buffer);
+  server.send(200, "application/json", buffer);
+}
+void APIGetAutoTuneProgress(){
+  StaticJsonDocument<100> jsonDocument;
+  char buffer[100];
+
+  jsonDocument.clear(); // Clear json buffer
+  JsonObject json = jsonDocument.to<JsonObject>();
+  json["AutoTuneRunning"] = TunningEnabled;
 
   serializeJson(jsonDocument, buffer);
   server.send(200, "application/json", buffer);
@@ -1306,6 +1389,37 @@ void APIPostFligthParam(){
   } else {
     server.send(400, "application/json", "{\"status\":\"erro\",\"msg\":\"Corpo vazio no POST\"}");
   }
+}
+void APIPostAutoTune(){
+  if (server.hasArg("plain")) {
+    String json = server.arg("plain");  // Recebe o corpo da requisição
+
+    // Cria um objeto JSON para armazenar os dados recebidos
+    StaticJsonDocument<200> doc;
+
+    // Deserializa o JSON recebido
+    DeserializationError error = deserializeJson(doc, json);
+
+    if (error) {
+      Serial.print("Erro ao parsear JSON: ");
+      Serial.println(error.c_str());
+      server.send(400, "application/json", "{\"status\":\"erro\",\"msg\":\"JSON inválido\"}");
+      return;
+    }
+
+    TuneMin = doc["TuneMin"];
+    TuneMax = doc["TuneMax"];
+    StartAutoTune = true;
+
+    // Resposta ao cliente
+    server.send(200, "application/json", "{\"status\":\"sucesso\",\"msg\":\"Iniciando autotune\"}");
+  }
+}
+
+void APIPostCancelAutoTune(){
+  TunningEnabled = false;
+  // Resposta ao cliente
+  server.send(200, "application/json", "{\"status\":\"sucesso\",\"msg\":\"Autotune finalizado\"}");
 }
 /************************************/
 

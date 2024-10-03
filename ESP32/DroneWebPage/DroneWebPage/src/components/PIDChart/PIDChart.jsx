@@ -7,38 +7,54 @@ import {
     CartesianGrid,
     Tooltip,
     Legend,
+    Bar,
+    Area,
+    BarChart,
+    Rectangle,
     ReferenceLine,
+    ComposedChart,
     ResponsiveContainer,
   } from 'recharts';
 
-const PIDChart = ({enable, data, zoomOut, maxElements, reset}) => {
+const PIDChart = ({enable, data, zoomOut, zoomIn, maxElements, reset, showGains, showLimits, showRate, save}) => {
+    const dataTotal = useRef([])
     const [dataChart, setDataChart] = useState([])
     const lastIndex = useRef(0)
-
-    const initialState = {
-        data: data,
-        left: 'dataMin',
-        right: 'dataMax',
-        refAreaLeft: '',
-        refAreaRight: '',
-        top: 'dataMax+1',
-        bottom: 'dataMin-1',
-        top2: 'dataMax+20',
-        bottom2: 'dataMin-20',
-        animation: true,
-      };
+    const [domain, setDomain] = useState([-100, 100])
     
     useEffect(() => {
       if (reset){
         setDataChart([])
+        setDomain([-100, 100])
+        dataTotal.current = []
       }
      
     }, [reset])
     
 
     useEffect(() => {
+      if (zoomIn){
+        let d = domain
+        if (d[1] > 25){
+          setDomain([d[0] + 5, d[1] - 5])
+        }else if (d[1] > 10){
+          setDomain([d[0] + 2, d[1] - 2])
+        }else if (d[1] > 1){
+          setDomain([d[0] + 1, d[1] - 1])
+        }
+      }
+    }, [zoomIn])
+
+    useEffect(() => {
       if (zoomOut){
-        //zoomOutCall();
+        let d = domain
+        if (d[1] > 25){
+          setDomain([d[0] - 5, d[1] + 5])
+        }else if (d[1] > 10){
+          setDomain([d[0] - 2, d[1] + 2])
+        }else if (d[1] > 1){
+          setDomain([d[0] - 1, d[1] + 1])
+        }
       }
     }, [zoomOut])
     
@@ -46,6 +62,10 @@ const PIDChart = ({enable, data, zoomOut, maxElements, reset}) => {
       if (enable){
         data[0].name = lastIndex.current;
         let newData = [...dataChart, ...data]
+        dataTotal.current = [...dataTotal.current, ...data];
+        if (dataTotal.current.length > 5000){
+          dataTotal.current = dataTotal.current.slice(5000 * -1, dataTotal.current.length);
+        }
         if (newData.length > maxElements){
           newData = newData.slice(maxElements * -1, newData.length);
         }
@@ -54,68 +74,31 @@ const PIDChart = ({enable, data, zoomOut, maxElements, reset}) => {
       }
     }, [data])
 
-    const getAxisYDomain = (from, to, ref, offset) => {
-        const refData = initialData.slice(from - 1, to);
-        let [bottom, top] = [refData[0][ref], refData[0][ref]];
-        refData.forEach((d) => {
-            if (d[ref] > top) top = d[ref];
-            if (d[ref] < bottom) bottom = d[ref];
-        });
-        
-        return [(bottom | 0) - offset, (top | 0) + offset];
-    };
+    useEffect(() => {
+      if (save){
+        saveJson("DataChartLog", dataTotal.current)
+      }
+    
+    }, [save])
 
-    /*
-    const zoom = ()=> {
-        let { refAreaLeft, refAreaRight } = this.state;
-        const { data } = this.state;
-
-        if (refAreaLeft === refAreaRight || refAreaRight === '') {
-            this.setState(() => ({
-            refAreaLeft: '',
-            refAreaRight: '',
-            }));
-            return;
-        }
-
-        // xAxis domain
-        if (refAreaLeft > refAreaRight) [refAreaLeft, refAreaRight] = [refAreaRight, refAreaLeft];
-
-        // yAxis domain
-        const [bottom, top] = getAxisYDomain(refAreaLeft, refAreaRight, 'cost', 1);
-        const [bottom2, top2] = getAxisYDomain(refAreaLeft, refAreaRight, 'impression', 50);
-
-        this.setState(() => ({
-            refAreaLeft: '',
-            refAreaRight: '',
-            data: data.slice(),
-            left: refAreaLeft,
-            right: refAreaRight,
-            bottom,
-            top,
-            bottom2,
-            top2,
-        }));
+    const saveJson = (fileName, jsonData)=>{
+      if (jsonData !== null && jsonData !== ''){
+        var blob = new Blob([JSON.stringify(jsonData)], {type: "application/json"});
+        const date = new Date();
+        let dateTime = String(date.getFullYear());
+        dateTime += String(date.getMonth() + 1).padStart(2, '0');
+        dateTime += String(date.getDate()).padStart(2, '0');
+        dateTime += '_';
+        dateTime += String(date.getHours()).padStart(2, '0');
+        dateTime += String(date.getMinutes()).padStart(2, '0');
+    
+        saveAs(blob, fileName + "_"+ dateTime +".json");
+      }
     }
 
-    const zoomOutCall = ()=> {
-        const { data } = this.state;
-        this.setState(() => ({
-            data: data.slice(),
-            refAreaLeft: '',
-            refAreaRight: '',
-            left: 'dataMin',
-            right: 'dataMax',
-            top: 'dataMax+1',
-            bottom: 'dataMin',
-            top2: 'dataMax+50',
-            bottom2: 'dataMin+50',
-        }));
-    }
-        */
   return (
     <ResponsiveContainer width="100%" height="100%">
-        <LineChart
+        <ComposedChart
             width={500}
             height={300}
             data={dataChart}
@@ -128,13 +111,18 @@ const PIDChart = ({enable, data, zoomOut, maxElements, reset}) => {
         >
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis dataKey="name" />
-            <YAxis domain={[-100, 100]} />
+            <YAxis domain={domain} />
             <Tooltip />
             <Legend />
             <Line type="monotone" dataKey="Output" stroke="#8884d8" dot={false}/>
             <Line type="monotone" dataKey="Actual" stroke="#82ca9d"  dot={false} />
             <Line type="monotone" dataKey="SP"     stroke="red"  dot={false} />
-        </LineChart>
+            {showLimits && <Area type="monotone" dataKey="MinMax"     stroke="gray" fill="#cccccc"  dot={false} />}
+            {showGains && <Line type="monotone" dataKey="kP"     stroke="Orange"  dot={false} />}
+            {showGains && <Line type="monotone" dataKey="kI"     stroke="Gold"  dot={false} />}
+            {showGains && <Line type="monotone" dataKey="kD"     stroke="Green"  dot={false} />}
+            {showRate && <Area type="monotone" dataKey="PidTimeSinceLastCall_Millis" stroke="#ebebf3" fill="#8884d8" />}
+        </ComposedChart>
     </ResponsiveContainer>
   )
 }
