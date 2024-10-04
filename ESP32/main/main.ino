@@ -438,13 +438,13 @@ void setup(void) {
   AccZ_CalibFactor = readFile(SPIFFS, "/AccZ_CalibFactor.txt").toFloat();
 
   //PID
-  PitchPID.SetOutputLimits(-100, 100);
+  PitchPID.SetOutputLimits(-10, 10);
   PitchPID.SetMode(AUTOMATIC);
-  RollPID.SetOutputLimits(-100, 100);
+  RollPID.SetOutputLimits(-10, 10);
   RollPID.SetMode(AUTOMATIC);
-  YawPID.SetOutputLimits(0, 100);
+  YawPID.SetOutputLimits(0, 10);
   YawPID.SetMode(AUTOMATIC);
-  TrottlePID.SetOutputLimits(0, 100);
+  TrottlePID.SetOutputLimits(0, 10);
   TrottlePID.SetMode(AUTOMATIC);
 
   PitchPID.SetTunings(PitchPIDVars.kP, PitchPIDVars.kI, PitchPIDVars.kD);
@@ -474,26 +474,18 @@ void loop(void) {
   //Modo de calibracao do ESC
   if (Mode.EscCalibration){
     EscCalibrationMode();
-  }
-
-  if (Mode.Angle){
+  }else if (Mode.Angle){
     AngleMode();
-  }
-
-  if (Mode.Acro){
+  }else if (Mode.Acro){
     AcroMode();
-  }
-
-  if (Mode.GyroCalibration){
+  }else if (Mode.GyroCalibration){
     CalibrarAngulos();
-  }
-
-  if (Mode.GyroAnalisys){
+  }else if (Mode.GyroAnalisys){
     GyroAnalisys();
-  }
-
-  if (Mode.ReturnHome){
+  }else if (Mode.ReturnHome){
     ReturnHomeMode();
+  }else{
+    Gyro_signals();
   }
 
   //Check cycle time
@@ -510,7 +502,7 @@ void TaskPID(void *pvParameters){
     PID_timeSpan = micros() - lastUptade;
     lastUptade = micros();
 
-    if (Mode.Angle && Control.ENABLE){
+    if (Mode.Angle && Control.ENABLE && Control.TROTLE > 1150){
 
       //Inicializa o PID
       if (PitchPID.GetMode() == MANUAL){
@@ -742,21 +734,45 @@ void AngleMode(){
   */
 }
 void AcroMode(){
-  return;
   float AnguloMax_Pitch = 10;
   float AnguloMax_Roll = 10;
   float AnguloBySec_Yaw = 10;
 
+  Gyro_signals();
   neutralPositionAdjustment();
 
   InputPitch=map(trunc(Control.PITCH), 1000, 2000, AnguloMax_Pitch * -1, AnguloMax_Pitch);
   InputRoll=map(trunc(Control.ROLL), 1000, 2000, AnguloMax_Roll * -1, AnguloMax_Roll);
   InputYaw=map(trunc(Control.YAW), 1000, 2000, AnguloBySec_Yaw * -1, AnguloBySec_Yaw);
 
+  if (Parameters["Trotle_Incremental"] == true){
+    InputThrottle=mapFloat(Control.TROTLE, 1000, 2000, 0, 100);
+  }else{
+    InputThrottle=mapFloat(Control.TROTLE, 1500, 2000, 0, 100);
+  }
+
   MotorInput1 = InputThrottle - InputPitch + InputRoll - InputYaw;
   MotorInput2 = InputThrottle - InputPitch - InputRoll + InputYaw;
   MotorInput3 = InputThrottle + InputPitch + InputRoll + InputYaw;
   MotorInput4 = InputThrottle + InputPitch - InputRoll - InputYaw;
+
+  int maxPower = 50;
+  if (Control.ENABLE){
+    MotorInput1 = range(MotorInput1 * GainMotor1, 0, 100);
+    SetMotorPower(1, MotorInput1, maxPower);
+
+    MotorInput2 = range(MotorInput2 * GainMotor2, 0, 100);
+    SetMotorPower(2, MotorInput2, maxPower);
+
+    MotorInput3 = range(MotorInput3 * GainMotor3, 0, 100);
+    SetMotorPower(3, MotorInput3, maxPower);
+
+    MotorInput4 = range(MotorInput4 * GainMotor4, 0, 100);
+    SetMotorPower(4, MotorInput4, maxPower);
+
+  }else{
+    StopMotors();
+  }
 }
 void EscCalibrationMode(){
   if (Control.ENABLE){
@@ -911,7 +927,7 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
     }
 
     if (!Control.ENABLE){
-      Control.TROTLE -= 5;
+      Control.TROTLE = 1000;
     }
 
     Control.TROTLE = Control.TROTLE > 2000 ? 2000 : Control.TROTLE;
@@ -924,7 +940,7 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
         if (Mode.EscCalibration){
           Control.ENABLE = true;
         }else{
-          if (Control.TROTLE < 1500){
+          if (Control.TROTLE < 1200){
             Control.ENABLE = true;
           }
         }
@@ -1636,9 +1652,16 @@ void neutralPositionAdjustment()
     Control.PITCH= 1500;
   }
 
-  if (Control.TROTLE < 1010 && Control.TROTLE > min)
-  {
-    Control.TROTLE= 1000;
+  if (Parameters["Trotle_Incremental"] == true){
+    /*if (Control.TROTLE < 1020)
+    {
+      Control.TROTLE= 1000;
+    }*/
+  }else{
+    if (Control.TROTLE < max && Control.TROTLE > min)
+    {
+      Control.TROTLE= 1500;
+    }
   }
 }
 void Gyro_signals()

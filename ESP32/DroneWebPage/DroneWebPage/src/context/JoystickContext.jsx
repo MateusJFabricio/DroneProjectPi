@@ -16,7 +16,7 @@ export const JoystickContextProvider = ({children})=>{
 
     useGamepads(gamepads => {
         if (gamepads != null){
-            setJoystick(gamepads[0]);
+            setJoystick(gamepads[1]);
         }else{
             setJoystick(null);
         }
