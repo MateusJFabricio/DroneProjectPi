@@ -149,12 +149,12 @@ const MPU6050Page = () => {
               Filtro de Kalman:
               <div style={{display: "flex", flexDirection: 'row',width: '90%', gap: "10px", border: 'solid 1px', padding: '5px', alignItems: 'center'}}>
                 <p>Pitch Erro Processo:</p>
-                <input type="range" onChange={(e)=>{setKalmanQAngle_Pitch(parseFloat(e.target.value))}} value={kalmanQAngle_Pitch}  min={0} max={2} step={0.001}/>
+                <input type="range" onChange={(e)=>{setKalmanQAngle_Pitch(parseFloat(e.target.value))}} value={kalmanQAngle_Pitch}  min={0} max={6} step={0.001}/>
                 <p>{kalmanQAngle_Pitch.toFixed(3)}%</p>
               </div>
               <div style={{display: "flex", flexDirection: 'row',width: '90%', gap: "10px", border: 'solid 1px', padding: '5px', alignItems: 'center'}}>
                 <p>Pitch Erro Gyro:</p>
-                <input type="range" onChange={(e)=>{setKalmanQBias_Pitch(parseFloat(e.target.value))}} value={kalmanQBias_Pitch} min={0} max={2} step={0.001}/>
+                <input type="range" onChange={(e)=>{setKalmanQBias_Pitch(parseFloat(e.target.value))}} value={kalmanQBias_Pitch} min={0} max={6} step={0.001}/>
                 <p>{kalmanQBias_Pitch.toFixed(3)}%</p>
               </div>
               <div style={{display: "flex", flexDirection: 'row',width: '90%', gap: "10px", border: 'solid 1px', padding: '5px', alignItems: 'center'}}>
@@ -165,7 +165,7 @@ const MPU6050Page = () => {
 
               <div style={{display: "flex", flexDirection: 'row',width: '90%', gap: "10px", border: 'solid 1px', padding: '5px', alignItems: 'center'}}>
                 <p>Roll Erro Processo:</p>
-                <input type="range" onChange={(e)=>{setKalmanQAngle_Roll(parseFloat(e.target.value))}} value={kalmanQAngle_Roll}  min={0} max={2} step={0.001}/>
+                <input type="range" onChange={(e)=>{setKalmanQAngle_Roll(parseFloat(e.target.value))}} value={kalmanQAngle_Roll}  min={0} max={6} step={0.001}/>
                 <p>{kalmanQAngle_Roll.toFixed(3)}%</p>
               </div>
               <div style={{display: "flex", flexDirection: 'row',width: '90%', gap: "10px", border: 'solid 1px', padding: '5px', alignItems: 'center'}}>

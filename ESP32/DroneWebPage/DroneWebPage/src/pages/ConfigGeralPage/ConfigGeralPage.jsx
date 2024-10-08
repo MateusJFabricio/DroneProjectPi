@@ -13,6 +13,7 @@ const ConfigGeralPage = () => {
   const [formTrotleLimitMessage, setformTrotleLimitMessage] = useState("Atualizando....")
   const [trotleIncremental, setTrotleIncremental] = useState(false)
   const [trotleIncremento, setTrotleIncremento] = useState(0)
+  const [trotleIdle, setTrotleIdle] = useState(0)
 
   useEffect(() => {
       formMotorsGainUpdate();
@@ -105,7 +106,8 @@ const ConfigGeralPage = () => {
     .then(response => response.json())
     .then(data => {
       setTrotleIncremental(data.Trotle_Incremental);
-      setTrotleIncremento(data.Trotle_Incremento)
+      setTrotleIncremento(data.Trotle_Incremento);
+      setTrotleIdle(data.Trotle_Idle);
       setformTrotleLimitMessage('');
     })
     .catch(()=>{
@@ -140,7 +142,8 @@ const ConfigGeralPage = () => {
 
     const dataTrotleConfig = {
       Trotle_Incremental: formData.get("checkbox_incremental"),
-      Trotle_Incremento: formData.get("trotle_incremento")
+      Trotle_Incremento: formData.get("trotle_incremento"),
+      Trotle_Idle: formData.get("trotle-idle"),
     }
 
     try{
@@ -221,7 +224,10 @@ const ConfigGeralPage = () => {
                 Incremento:
                 <input type="text" name="trotle_incremento" value={trotleIncremento} onChange={(e)=> setTrotleIncremento(e.target.value)} />
               </p>
-              
+              <p>
+                Trotle IDLE:
+                <input type="text" name="trotle-idle" value={trotleIdle} onChange={(e)=> setTrotleIdle(e.target.value)} />
+              </p>              
             </label>
           </p>
           <p style={{color: "red"}}>*Range de 0 até 1</p>

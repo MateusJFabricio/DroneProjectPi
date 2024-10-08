@@ -475,7 +475,7 @@ void loop(void) {
   if (Mode.EscCalibration){
     EscCalibrationMode();
   }else if (Mode.Angle){
-    AngleMode();
+    //AngleMode();
   }else if (Mode.Acro){
     AcroMode();
   }else if (Mode.GyroCalibration){
@@ -493,7 +493,7 @@ void loop(void) {
 }
 void TaskPID(void *pvParameters){
   Serial.println("Task PID Iniciada");
-  const TickType_t xFrequency = pdMS_TO_TICKS(2); // ciclo de 2 ms
+  const TickType_t xFrequency = pdMS_TO_TICKS(1); // ciclo de 2 ms
   TickType_t xLastWakeTime = xTaskGetTickCount();  // pega o tick atual
   unsigned long lastUptade = micros();
 
@@ -502,7 +502,7 @@ void TaskPID(void *pvParameters){
     PID_timeSpan = micros() - lastUptade;
     lastUptade = micros();
 
-    if (Mode.Angle && Control.ENABLE && Control.TROTLE > 1150){
+    if (Mode.Angle && Control.ENABLE && Control.TROTLE > Parameters["Trotle_Idle"]){
 
       //Inicializa o PID
       if (PitchPID.GetMode() == MANUAL){
@@ -527,6 +527,7 @@ void TaskPID(void *pvParameters){
       PitchPIDVars.Setpoint = DesiredAnglePitch;
       PitchPIDVars.Input = AnglePitch;
 
+      RollPID.SetOutputLimits(rangeValue * -1, rangeValue);
       RollPIDVars.Setpoint = DesiredAngleRoll;
       RollPIDVars.Input = AngleRoll;
 
@@ -587,6 +588,10 @@ void TaskPID(void *pvParameters){
     RollPID.Compute();
     YawPID.Compute();
     TrottlePID.Compute();
+
+    if (Mode.Angle){
+      AngleMode();
+    }
 
     vTaskDelayUntil(&xLastWakeTime, xFrequency); // delay até o próximo ciclo
   }
@@ -669,6 +674,15 @@ void AngleMode(){
   MotorInput2 = InputThrottle - InputPitch;// - InputRoll;// + InputYaw;
   MotorInput3 = InputThrottle + InputPitch;// + InputRoll;// + InputYaw;
   MotorInput4 = InputThrottle + InputPitch;// - InputRoll;// - InputYaw;
+
+  //Verifica se esta no minimo da sustentacao durante o PID
+  if (Control.TROTLE >= Parameters["Trotle_Idle"]){
+    float minMotor=mapFloat(Parameters["Trotle_Idle"], 1000, 2000, 0, 100);
+    MotorInput1 = MotorInput1 < minMotor ? minMotor : MotorInput1;
+    MotorInput2 = MotorInput2 < minMotor ? minMotor : MotorInput2;
+    MotorInput3 = MotorInput3 < minMotor ? minMotor : MotorInput3;
+    MotorInput4 = MotorInput4 < minMotor ? minMotor : MotorInput4;
+  }
   
   int maxPower = 50;
   if (Control.ENABLE){
@@ -688,6 +702,7 @@ void AngleMode(){
     StopMotors();
   }
 
+  /*
   Serial.print(",Cem:");
   Serial.print(100);
   Serial.print(",MenosCem:");
@@ -703,7 +718,6 @@ void AngleMode(){
   Serial.print(InputRoll);
   Serial.print(",InputYaw:");
   Serial.print(InputYaw);
-  */
   Serial.print(",MotorInput1:");
   Serial.print(MotorInput1);
   Serial.print(",MotorInput2:");
@@ -712,14 +726,12 @@ void AngleMode(){
   Serial.print(MotorInput3);
   Serial.print(",MotorInput4:");
   Serial.print(MotorInput4);
-  /*
   Serial.print(",MotorInput2:");
   Serial.print(MotorInput2);
   Serial.print(",MotorInput3:");
   Serial.print(MotorInput3);
   Serial.print(",MotorInput4:");
   Serial.println(MotorInput4);
-  */
   Serial.print(",Trottle:");
   Serial.print(Control.TROTLE);
   Serial.print(",PID_Pitch:");
@@ -808,6 +820,12 @@ void GyroAnalisys(){
     StopMotors();
   }
 
+  Serial.print(",AccX:");
+  Serial.print(Accelerometer_x);
+  Serial.print(",AccY:");
+  Serial.print(Accelerometer_y);
+  Serial.print(",AccZ:");
+  Serial.print(Accelerometer_z);
   Serial.print(",AnglePitch:");
   Serial.print(AnglePitch);
   Serial.print(",AngleRoll:");
@@ -1119,6 +1137,7 @@ void APIGetFlightParameters(){
   JsonObject json = jsonDocument.to<JsonObject>();
   json["Trotle_Incremental"] = (bool)Parameters["Trotle_Incremental"];
   json["Trotle_Incremento"] = (int)Parameters["Trotle_Incremento"];
+  json["Trotle_Idle"] = (int)Parameters["Trotle_Idle"];
 
   serializeJson(jsonDocument, buffer);
   server.send(200, "application/json", buffer);
@@ -1396,6 +1415,7 @@ void APIPostFligthParam(){
 
     Parameters["Trotle_Incremental"] = (bool)doc["Trotle_Incremental"];
     Parameters["Trotle_Incremento"] = (int)doc["Trotle_Incremento"];
+    Parameters["Trotle_Idle"] = (int)doc["Trotle_Idle"];
 
     char buffer[2000];
     serializeJson(Parameters, buffer);
@@ -1723,20 +1743,32 @@ void Gyro_signals()
   kalmanFilterAX.updateEstimate(Accelerometer_x);
   kalmanFilterAY.updateEstimate(Accelerometer_y);
   kalmanFilterAZ.updateEstimate(Accelerometer_x);
+  if (false){ //Com filtro de Kalman para cada valor
+    Accelerometer_x = degrees(kalmanFilterAX.getEstimate());
+    Accelerometer_y = degrees(kalmanFilterAY.getEstimate());
+    Accelerometer_z = degrees(kalmanFilterAZ.getEstimate());
 
-  Accelerometer_x = degrees(kalmanFilterAX.getEstimate());
-  Accelerometer_y = degrees(kalmanFilterAY.getEstimate());
-  Accelerometer_z = degrees(kalmanFilterAZ.getEstimate());
+    Gyroscope_x += (kalmanFilterGX.getEstimate() - GyroX_CalibFactor) * sampleMicros / 1000000;
+    Gyroscope_y += (kalmanFilterGY.getEstimate() - GyroY_CalibFactor) * sampleMicros / 1000000;
+    Gyroscope_z += (kalmanFilterGZ.getEstimate() - GyroZ_CalibFactor) * sampleMicros / 1000000;
+  }else{
+    //Sem filtro de Kalman para cada valor medido
+    Accelerometer_x = degrees(Accelerometer_x);
+    Accelerometer_y = degrees(Accelerometer_y);
+    Accelerometer_z = degrees(Accelerometer_z);
 
-  Gyroscope_x += (kalmanFilterGX.getEstimate() - GyroX_CalibFactor) * sampleMicros / 1000000;
-  Gyroscope_y += (kalmanFilterGY.getEstimate() - GyroY_CalibFactor) * sampleMicros / 1000000;
-  Gyroscope_z += (kalmanFilterGZ.getEstimate() - GyroZ_CalibFactor) * sampleMicros / 1000000;
+    Gyroscope_x += (GyroX - GyroX_CalibFactor) * sampleMicros / 1000000;
+    Gyroscope_y += (GyroY - GyroY_CalibFactor) * sampleMicros / 1000000;
+    Gyroscope_z += (GyroZ - GyroZ_CalibFactor) * sampleMicros / 1000000;
+  }
+  
 
   //AnglePitch = ComplementaryAlpha * Gyroscope_x + (1 - ComplementaryAlpha) * Accelerometer_x;
-
   AnglePitch = KalmanFilter(KalmanVarPitch, Gyroscope_x, Accelerometer_x, (float)sampleMicros / 1000000);
+
   //AnglePitch = Accelerometer_x;
   AnglePitch *= -1;
+
   AngleRoll = KalmanFilter(KalmanVarRoll, Gyroscope_y, Accelerometer_y, (float)sampleMicros / 1000000);
   //AngleRoll = Accelerometer_y;
   AngleYaw = Gyroscope_z;
