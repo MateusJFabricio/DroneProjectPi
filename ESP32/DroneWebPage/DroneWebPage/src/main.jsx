@@ -19,7 +19,7 @@ import MPU6050Page from './pages/MPU6050/MPU6050Page.jsx';
 
 const router = createBrowserRouter([
   {
-    path: "/",
+    path: "/DroneProjectPi",
     element: (
       <JoystickContextProvider>
         <ApiContextProvider>
