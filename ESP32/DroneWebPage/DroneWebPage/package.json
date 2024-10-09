@@ -1,5 +1,5 @@
 {
-  "homepage": "https://mateusjfabricio.github.io/DroneProjectPI",
+  "homepage": "http://mateusjfabricio.github.io/DroneProjectPi",
   "name": "dronewebpage",
   "private": true,
   "version": "0.0.0",
@@ -9,6 +9,7 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
+    "predeploy": "npm run build",
     "deploy": "gh-pages -d dist"
   },
   "dependencies": {
