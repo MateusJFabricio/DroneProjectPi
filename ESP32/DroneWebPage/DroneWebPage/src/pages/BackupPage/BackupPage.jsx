@@ -5,7 +5,6 @@ import 'react-json-view-lite/dist/index.css';
 import './BackupPage.css'
 import { useFilePicker } from 'use-file-picker';
 import {ApiContext} from '../../context/ApiContext'
-import { FigureEightPolynomialKnot } from 'three/examples/jsm/curves/CurveExtras.js';
 
 
 const BackupPage = () => {
