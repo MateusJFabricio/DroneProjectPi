@@ -13,6 +13,7 @@
     "deploy": "gh-pages -d dist"
   },
   "dependencies": {
+    "@react-three/drei": "^9.114.3",
     "@uiw/react-json-view": "^2.0.0-alpha.27",
     "@vaadin/progress-bar": "^24.4.9",
     "file-saver": "^2.0.5",
